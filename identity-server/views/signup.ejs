@@ -1,0 +1,12 @@
+<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title><%= title %></title><link rel="stylesheet" href="/styles.css"></head>
+<body><header class="topbar"><a class="brand" href="/">APP-04 <span>AUTH DEMO</span></a><nav><a href="/login">Đăng nhập</a></nav></header>
+<main class="auth-layout"><section class="auth-aside"><div class="eyebrow"><span class="dot"></span> CREATE ACCOUNT</div><h1>Bắt đầu với<br><em>một tài khoản mới.</em></h1><p>Dữ liệu tài khoản được lưu trong PostgreSQL. Mật khẩu được băm bằng Argon2id trước khi lưu.</p><ul><li>Không lưu mật khẩu dạng plaintext</li><li>Kiểm tra email và username trùng lặp</li><li>Session không được tạo cho đến khi đăng nhập</li></ul></section>
+<section class="auth-card"><div class="card-kicker">ĐĂNG KÝ</div><h2>Tạo tài khoản</h2><p class="muted">Điền thông tin bên dưới để đăng ký.</p>
+<% if (errors && errors.length) { %><div class="alert error" role="alert"><strong>Chưa thể tạo tài khoản</strong><ul><% errors.forEach(function(error) { %><li><%= error %></li><% }) %></ul></div><% } %>
+<form method="post" action="/signup" novalidate><input type="hidden" name="_csrf" value="<%= csrfToken %>">
+<label for="username">Tên người dùng</label><input id="username" name="username" autocomplete="username" minlength="3" maxlength="30" pattern="[A-Za-z0-9_]+" value="<%= values.username || '' %>" required><small>3–30 ký tự, chữ không dấu, số hoặc dấu _.</small>
+<label for="email">Email</label><input id="email" name="email" type="email" autocomplete="email" maxlength="254" value="<%= values.email || '' %>" required>
+<label for="password">Mật khẩu</label><input id="password" name="password" type="password" autocomplete="new-password" minlength="12" maxlength="128" required><small>Tối thiểu 12 ký tự. Không dùng mật khẩu thật đang dùng ở nơi khác.</small>
+<label for="confirmPassword">Xác nhận mật khẩu</label><input id="confirmPassword" name="confirmPassword" type="password" autocomplete="new-password" minlength="12" maxlength="128" required>
+<button class="button primary full" type="submit">Tạo tài khoản <span>↗</span></button></form>
+<p class="switch-line">Đã có tài khoản? <a href="/login">Đăng nhập</a></p></section></main></body></html>

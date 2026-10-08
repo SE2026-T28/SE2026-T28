@@ -1,0 +1,11 @@
+<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title><%= title %></title><link rel="stylesheet" href="/styles.css"></head>
+<body><header class="topbar"><a class="brand" href="/">APP-04 <span>AUTH DEMO</span></a><nav><a href="/signup">Tạo tài khoản</a></nav></header>
+<main class="auth-layout login-layout"><section class="auth-aside"><div class="eyebrow"><span class="dot"></span> SECURE SIGN-IN</div><h1>Chào mừng<br><em>quay trở lại.</em></h1><p>Đăng nhập bằng email hoặc tên người dùng đã đăng ký. Thông báo lỗi không tiết lộ tài khoản có tồn tại hay không.</p><div class="aside-note"><strong>Quyền riêng tư là mặc định.</strong><span>Không ghi mật khẩu hoặc token vào audit log.</span></div></section>
+<section class="auth-card"><div class="card-kicker">ĐĂNG NHẬP</div><h2>Đăng nhập</h2><p class="muted">Nhập thông tin tài khoản của bạn.</p>
+<% if (message) { %><div class="alert success" role="status"><%= message %></div><% } %>
+<% if (errors && errors.length) { %><div class="alert error" role="alert"><strong>Không thể đăng nhập</strong><ul><% errors.forEach(function(error) { %><li><%= error %></li><% }) %></ul></div><% } %>
+<form method="post" action="/login"><input type="hidden" name="_csrf" value="<%= csrfToken %>">
+<label for="identifier">Email hoặc tên người dùng</label><input id="identifier" name="identifier" autocomplete="username" value="<%= values.identifier || '' %>" required>
+<label for="password">Mật khẩu</label><input id="password" name="password" type="password" autocomplete="current-password" required>
+<button class="button primary full" type="submit">Đăng nhập <span>↗</span></button></form>
+<p class="switch-line">Chưa có tài khoản? <a href="/signup">Đăng ký ngay</a></p></section></main></body></html>

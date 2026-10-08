@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title><%= title %></title><link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="topbar"><a class="brand" href="/">APP-04 <span>AUTH DEMO</span></a><nav>
+    <% if (currentUser) { %><a href="/profile">Tài khoản</a><form class="nav-form" method="post" action="/logout"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><button class="link-button" type="submit">Đăng xuất</button></form><% } else { %><a href="/login">Đăng nhập</a><a class="nav-cta" href="/signup">Tạo tài khoản</a><% } %>
+  </nav></header>
+  <main class="hero-wrap"><section class="hero">
+    <div class="eyebrow"><span class="dot"></span> SE2026-T28 · APP-04</div>
+    <h1>Authentication,<br><em>đúng ngay từ nền tảng.</em></h1>
+    <p class="lead">Demo đăng ký và đăng nhập với PostgreSQL, Argon2id password hashing, session lưu trong database và các lớp bảo vệ cơ bản.</p>
+    <div class="hero-actions"><% if (currentUser) { %><a class="button primary" href="/profile">Mở tài khoản <span>↗</span></a><% } else { %><a class="button primary" href="/signup">Tạo tài khoản <span>↗</span></a><a class="button secondary" href="/login">Đăng nhập</a><% } %></div>
+    <div class="feature-grid">
+      <article><span class="feature-icon">01</span><h3>Mật khẩu không lưu thô</h3><p>Hash bằng Argon2id; database chỉ lưu password hash.</p></article>
+      <article><span class="feature-icon">02</span><h3>Session phía server</h3><p>Session lưu trong PostgreSQL; cookie HttpOnly và SameSite.</p></article>
+      <article><span class="feature-icon">03</span><h3>Kiểm tra đầu vào</h3><p>Validate dữ liệu, chống CSRF cơ bản và giới hạn request auth.</p></article>
+    </div>
+    <p class="disclaimer">Bản demo học tập — chưa phải hệ thống production hoặc OIDC hoàn chỉnh.</p>
+  </section></main>
+</body></html>
