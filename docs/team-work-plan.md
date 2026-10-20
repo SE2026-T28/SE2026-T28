@@ -7,7 +7,7 @@
 
 ## Phiên bản tech stack dùng chung
 
-**Mốc tra cứu:** 15/10/2026. Đây là **các phiên bản cụ thể để toàn nhóm cùng dùng**, không phải khoảng phiên bản để mỗi người tự chọn. Repo hiện chưa có `package.json`/lockfile, nên tính tương thích cuối cùng phải được xác nhận bằng cài đặt, build và chạy Discovery Endpoint cùng React callback. Nếu một phiên bản cần đổi, cập nhật bảng này và lockfile trong cùng PR.
+**Mốc tra cứu:** 15/10/2026. Đây là **các phiên bản cụ thể để toàn nhóm cùng dùng**, không phải khoảng phiên bản để mỗi người tự chọn. `client-demo/` đã có `package.json`/lockfile ghim các phiên bản frontend; `identity-server/` chưa có (chờ O1), nên tính tương thích cuối cùng phải được xác nhận bằng cài đặt, build và chạy Discovery Endpoint cùng React callback. Nếu một phiên bản cần đổi, cập nhật bảng này và lockfile trong cùng PR.
 
 | Thành phần | Phiên bản thống nhất | Áp dụng / ghi chú |
 | --- | --- | --- |
@@ -75,7 +75,7 @@ Các giá trị dưới đây là **đề xuất để review**, chưa được 
 | User/claims | `sub` dùng ID ổn định của user trong DB, không dùng email có thể thay đổi; claim `email`/`profile` tối thiểu chỉ trả khi scope và cấu hình cho phép. Chốt kiểu ID và schema thực tế trong PR A1/O1. | TV1 + TV2 + TV3 |
 | Login interaction | TV1 xử lý mật khẩu/MFA trong interaction của Identity Server; TV2 cung cấp giao diện tích hợp và hoàn tất interaction sau khi TV1 báo thành công. Ghi rõ contract lỗi và session trong issue O2/A3 trước khi code. | TV1 + TV2 |
 | MFA mock | Chỉ dùng tài khoản demo và hiển thị mã thử nghiệm trong môi trường local; thử sai, hết hạn, dùng lại phải bị từ chối. Không gọi đây là MFA production. | TV1 + TV4 |
-| Phiên bản chung | Bảng phiên bản ở đầu tài liệu là mục tiêu, **chưa xác minh tương thích**. TV2/TV3 kiểm tra bằng cài đặt, build, Discovery và React callback rồi chốt `.nvmrc`/lockfile. Nhánh auth mẫu hiện dùng JS/Express 4/PostgreSQL 16, khác mục tiêu TypeScript/Express 5/PostgreSQL 17. | TV2 + TV3; TV1 phối hợp chuyển phần auth |
+| Phiên bản chung | Bảng phiên bản ở đầu tài liệu là mục tiêu. Phần frontend (React, Vite, plugin-react, TypeScript, oidc-client-ts, Vitest) đã cài đặt và chạy typecheck/test/build thành công trên Node 24.22.0 trong `client-demo/`; phần backend **chưa xác minh tương thích**, chờ TV2. TV2/TV3 kiểm tra bằng cài đặt, build, Discovery và React callback rồi chốt `.nvmrc`/lockfile. Nhánh auth mẫu hiện dùng JS/Express 4/PostgreSQL 16, khác mục tiêu TypeScript/Express 5/PostgreSQL 17. | TV2 + TV3; TV1 phối hợp chuyển phần auth |
 
 Chính sách refresh/revoke, định dạng Access Token, cách API xác minh và logout sẽ được ghi thành quyết định riêng trước O5/S1/C4/C5; chưa tự chốt khi chưa có luồng OIDC chạy được.
 
