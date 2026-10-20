@@ -7,6 +7,8 @@
     "node": "24.22.0"
   },
   "scripts": {
+    "prebuild": "node scripts/check-node.cjs",
+    "prestart": "node scripts/check-node.cjs",
     "build": "tsc -p tsconfig.json",
     "dev": "npm run build && node --env-file=.env --watch dist/src/server.js",
     "start": "node --env-file=.env dist/src/server.js",

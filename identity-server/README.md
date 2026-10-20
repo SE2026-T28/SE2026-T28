@@ -9,6 +9,7 @@ Yêu cầu Node.js **24.22.0** và npm đi kèm. Tại thư mục gốc repo:
 ```bash
 nvm install
 nvm use
+node --version  # phải là v24.22.0
 cd identity-server
 cp .env.example .env
 npm ci
@@ -18,6 +19,8 @@ npm start
 ```
 
 Nếu máy chưa có `nvm`, cài Node.js 24.22.0 bằng cách khác rồi kiểm tra `node --version`. Node.js dùng `--env-file` để đọc `.env`; không cần Python `venv`. `node_modules`, `dist` và `.env` được Git bỏ qua.
+
+Nếu terminal đã mở từ trước khi cài `nvm` và vẫn hiện Node 12, chạy `source ~/.nvm/nvm.sh && nvm use` ngay trong terminal đó (ở thư mục repo hoặc `identity-server`), sau đó kiểm tra lại `node --version` và `which node`. Các lệnh build/start sẽ dừng sớm với thông báo rõ ràng nếu Node không đúng phiên bản.
 
 Mở terminal khác để kiểm tra Discovery:
 
