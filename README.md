@@ -26,3 +26,7 @@ SE2026-T28 - 4 members
 - database: Database files
 - tests: Automated tests
 - docs: Documentation
+
+## Local OIDC foundation
+
+See [identity-server/README.md](identity-server/README.md) for the O1 setup, local client contract, and Discovery check.
