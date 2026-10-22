@@ -12,10 +12,12 @@
     "build": "tsc -p tsconfig.json",
     "dev": "npm run build && node --env-file=.env --watch dist/src/server.js",
     "start": "node --env-file=.env dist/src/server.js",
-    "test": "npm run build && node --test dist/test/*.test.js"
+    "test": "npm run build && node --test dist/test/*.test.js",
+    "test:headers": "node --test ../tests/security/check-headers.test.mjs && node ../tests/security/server-headers.mjs"
   },
   "dependencies": {
     "express": "5.2.1",
+    "helmet": "8.3.0",
     "oidc-provider": "9.12.2"
   },
   "devDependencies": {
