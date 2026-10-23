@@ -69,7 +69,7 @@ Express chỉ làm lớp HTTP cho các route ứng dụng và tích hợp provid
 | Thành phần | Lựa chọn | Ghi chú |
 | --- | --- | --- |
 | Identity Server | Node.js, TypeScript, Express, `oidc-provider` | Xác nhận phiên bản và API tương thích trước khi cài |
-| Demo client | React, Vite, TypeScript, thư viện OIDC client phù hợp | `oidc-client-ts` là ứng viên, cần thử luồng thực tế trước khi chốt |
+| Demo client | React, Vite, TypeScript, thư viện OIDC client phù hợp | Đã chọn `oidc-client-ts` (ghim 3.5.0) |
 | Dữ liệu | PostgreSQL, Prisma | Prisma cho dữ liệu ứng dụng; adapter của provider tuân theo API thư viện |
 | Mật khẩu | Argon2id qua thư viện được duy trì | Không tự triển khai thuật toán băm |
 | Kiểm thử | Vitest hoặc Jest; Playwright cho E2E nếu cần | Ưu tiên protocol/integration tests có ý nghĩa |
@@ -80,13 +80,13 @@ Docker Compose **không thuộc phạm vi mặc định**. Ưu tiên chạy loca
 ## 4. Luồng đăng nhập chính
 
 1. Người dùng nhấn Login trên React client.
-2. Client tạo `state`, `nonce`, `code_verifier` và `code_challenge` S256 riêng cho lần đăng nhập; lưu tạm dữ liệu giao dịch theo cơ chế của thư viện client.
+2. Client tạo `nonce` ngẫu nhiên và truyền tường minh vào `signinRedirect` (thư viện không tự sinh `nonce` cho code flow); thư viện tạo `state`, `code_verifier` và `code_challenge` S256 riêng cho lần đăng nhập, lưu tạm dữ liệu giao dịch theo cơ chế của thư viện client.
 3. Trình duyệt chuyển đến Authorization Endpoint với `client_id`, `redirect_uri`, `scope=openid`, `response_type=code` và PKCE challenge.
 4. Provider kiểm tra yêu cầu và chuyển đến interaction đăng nhập khi chưa có session phù hợp.
 5. Identity Server kiểm tra mật khẩu, thực hiện MFA mock, hoàn tất interaction và consent nếu chính sách yêu cầu.
 6. Provider chuyển trình duyệt về `redirect_uri` đã đăng ký cùng Authorization Code và `state`.
 7. Client đối chiếu `state`, đổi code tại Token Endpoint bằng `code_verifier` và nhận token.
-8. Client xác minh ID Token bằng thư viện OIDC: chữ ký, `iss`, `aud`, thời hạn và `nonce` khi đã gửi; chỉ sau đó mới coi người dùng đã đăng nhập.
+8. Client xác minh ID Token bằng thư viện OIDC: `iss`, `aud`, thời hạn và `nonce` khi đã gửi; chỉ sau đó mới coi người dùng đã đăng nhập. Lưu ý: `oidc-client-ts` chỉ giải mã ID Token chứ không xác minh chữ ký; cách xác minh chữ ký sẽ được quyết định ở C2.
 9. Client dùng Access Token để gọi Protected Resource API demo; API kiểm tra token theo cơ chế đã chốt rồi mới trả dữ liệu. Refresh Token chỉ được cấp nếu chính sách client/provider cho phép.
 
 `state`, `nonce` và PKCE có mục đích khác nhau; không dùng một giá trị thay cho cả ba. PKCE S256 là yêu cầu cho public client theo [OAuth 2.0 Security Best Current Practice](https://www.rfc-editor.org/rfc/rfc9700.html). Quy tắc kiểm tra ID Token dựa trên [OpenID Connect Core](https://openid.net/specs/openid-connect-core-1_0-18.html).
@@ -204,7 +204,7 @@ SE2026-T28/
 │   │   ├── resource-api/   # API demo được bảo vệ
 │   │   └── config/
 │   └── prisma/
-├── client-demo/
+├── client-demo/            # cấu trúc đích; scaffold hiện tại phẳng: src/auth.ts, config.ts, App.tsx
 │   └── src/
 │       ├── auth/
 │       ├── pages/
