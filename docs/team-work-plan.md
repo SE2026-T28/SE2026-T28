@@ -18,7 +18,7 @@
 | PostgreSQL | **17.11** | Cả nhóm dùng cùng bản 17.11; migration phải chạy được trên bản này |
 | `prisma`, `@prisma/client`, `@prisma/adapter-pg` | **7.10.0 cho cả ba** | Prisma cho dữ liệu ứng dụng; adapter OIDC vẫn phải theo API riêng của `oidc-provider` |
 | React và `react-dom` | **19.3.0 cho cả hai** | React demo client |
-| Vite / `@vitejs/plugin-react` | **8.3.0 / 6.1.2** | Công cụ build React |
+| Vite / `@vitejs/plugin-react` | **8.3.5 / 6.1.2** | Công cụ build React |
 | `oidc-client-ts` | **3.5.0** | Authorization Code + PKCE, callback và xác minh ID Token ở React |
 | `argon2` | **0.45.1** | TV1 dùng biến thể Argon2id cho password hashing |
 | Helmet | **8.3.0** | Security headers của Identity Server; chỉnh CSP theo UI thực tế |
@@ -27,7 +27,7 @@
 
 **Quy tắc khóa phiên bản:** khi khởi tạo, cài các dependency bằng `npm install --save-exact` hoặc `npm install -D --save-exact`, để `package.json` ghi số phiên bản cụ thể (ví dụ `"vitest": "5.0.4"`, không dùng `5.x`, `^5.0.4` hay `latest`). Commit `package-lock.json` ở root nếu dùng npm workspaces, hoặc trong từng app nếu cài riêng; CI dùng `npm ci`. Node được chốt trong `.nvmrc` và CI. `oidc-provider` và Prisma 7 dùng ESM, vì vậy backend đặt `"type": "module"` và cấu hình TypeScript phù hợp. Prisma 7 kết nối PostgreSQL qua `@prisma/adapter-pg`. Không cần Python `venv` cho stack này; môi trường chạy là Node.js + npm + PostgreSQL. [Node.js LTS](https://nodejs.org/uk/blog/release/v24.22.0), [`oidc-provider` 9.12.2](https://github.com/panva/node-oidc-provider/releases/tag/v9.12.2), [Prisma 7.10.0](https://github.com/prisma/orm/releases), [Prisma 7 và ESM/adapter](https://www.prisma.io/docs/orm/v7).
 
-**Nguồn kiểm tra frontend và công cụ:** [React 19.3](https://react.dev/blog/2026/09/09/react-19-3), [Vite 8.3.0](https://github.com/vitejs/vite/blob/main/packages/vite/CHANGELOG.md), [`@vitejs/plugin-react` 6.1.2](https://github.com/vitejs/vite-plugin-react/releases), [`oidc-client-ts` 3.5.0](https://github.com/authts/oidc-client-ts/releases), [Vitest 5.0.4](https://github.com/vitest-dev/vitest/releases), [Playwright 1.64.1](https://github.com/microsoft/playwright/releases), [PostgreSQL 17.11](https://www.postgresql.org/docs/17/release-17-11.html).
+**Nguồn kiểm tra frontend và công cụ:** [React 19.3](https://react.dev/blog/2026/09/09/react-19-3), [Vite 8.3.5](https://github.com/vitejs/vite/blob/main/packages/vite/CHANGELOG.md), [`@vitejs/plugin-react` 6.1.2](https://github.com/vitejs/vite-plugin-react/releases), [`oidc-client-ts` 3.5.0](https://github.com/authts/oidc-client-ts/releases), [Vitest 5.0.4](https://github.com/vitest-dev/vitest/releases), [Playwright 1.64.1](https://github.com/microsoft/playwright/releases), [PostgreSQL 17.11](https://www.postgresql.org/docs/17/release-17-11.html).
 
 ## 1. Kết quả cuối cùng cần bàn giao
 
