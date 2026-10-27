@@ -47,7 +47,7 @@ Chỉ chứa URL/định danh public, không secret. Thiếu biến hoặc scope
 
 Giá trị khớp `identity-server/.env.example` (nhánh `feat/oidc-provider-discovery`); IdP cho phép CORS origin `http://localhost:5173`.
 
-Lưu ý: `client_id` `app04-react-demo` theo `identity-server/.env.example`; tài liệu kế hoạch nhóm ghi `app04-demo` — chờ xác nhận, đổi bằng `VITE_OIDC_CLIENT_ID`.
+Lưu ý: `client_id` `app04-react-demo` là giá trị đã chốt với O1 (khớp `identity-server/.env.example`); đổi bằng `VITE_OIDC_CLIENT_ID`.
 
 ## Ghi chú thiết kế
 
