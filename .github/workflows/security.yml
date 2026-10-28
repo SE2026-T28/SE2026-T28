@@ -1,0 +1,82 @@
+name: Security foundation
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  applications:
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.detect.outputs.backend }}
+      frontend: ${{ steps.detect.outputs.frontend }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Detect application scaffolds
+        id: detect
+        shell: bash
+        run: |
+          for entry in backend:identity-server frontend:client-demo; do
+            name="${entry%%:*}"
+            directory="${entry#*:}"
+            if test -f "$directory/package.json"; then
+              test -f "$directory/package-lock.json"
+              echo "$name=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "$name=false" >> "$GITHUB_OUTPUT"
+              echo "Pending: $directory scaffold is absent; application checks did not run." >> "$GITHUB_STEP_SUMMARY"
+            fi
+          done
+  backend:
+    needs: applications
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: identity-server
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.22.0'
+          cache: npm
+          cache-dependency-path: identity-server/package-lock.json
+      - run: npm ci
+      - run: npm test
+      - name: Test header checker and running server
+        run: npm run test:headers
+  frontend:
+    needs: applications
+    if: needs.applications.outputs.frontend == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: client-demo
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.22.0'
+          cache: npm
+          cache-dependency-path: client-demo/package-lock.json
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+
+  secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.22.0'
+      - name: Reject committed environment files
+        run: node tests/security/check-tracked-env.mjs
+      - name: Scan Git history for secrets
+        run: docker run --rm -v "$GITHUB_WORKSPACE:/repo" ghcr.io/gitleaks/gitleaks:v8.30.1 git /repo --redact --log-opts="--all"
+      - name: Scan current source files
+        run: docker run --rm -v "$GITHUB_WORKSPACE:/repo" ghcr.io/gitleaks/gitleaks:v8.30.1 dir /repo --redact

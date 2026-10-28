@@ -1,11 +1,13 @@
 import { randomBytes } from "node:crypto";
 import express from "express";
 import { Provider } from "oidc-provider";
+import { securityHeaders } from "./security/headers.js";
 import type { AppConfig } from "./config.js";
 
 export function createApp(config: AppConfig) {
   const app = express();
   app.disable("x-powered-by");
+  app.use(securityHeaders(config.issuer));
 
   const provider = new Provider(config.issuer, {
     clients: [
