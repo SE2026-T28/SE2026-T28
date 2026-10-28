@@ -30,8 +30,8 @@ test("Discovery publishes the agreed issuer and public-client endpoints", async 
   probe.close();
   await once(probe, "close");
 
-  const issuer = `http://127.0.0.1:${port}`;
-  const server = createApp({ ...agreedConfig, issuer }).listen(port, "127.0.0.1");
+  const issuer = `http://localhost:${port}`;
+  const server = createApp({ ...agreedConfig, issuer }).listen(port);
   try {
     await once(server, "listening");
     const response = await fetch(`${issuer}/.well-known/openid-configuration`);
@@ -71,4 +71,8 @@ test("Discovery publishes the agreed issuer and public-client endpoints", async 
 
 test("Local configuration rejects a mismatched client origin", () => {
   assert.throws(() => readConfig({ ...env, OIDC_CORS_ORIGIN: "http://localhost:5174" }), /CORS origin/);
+});
+
+test("Production configuration is rejected while storage and keys are development-only", () => {
+  assert.throws(() => readConfig({ ...env, NODE_ENV: "production" }), /production is not supported yet/);
 });
