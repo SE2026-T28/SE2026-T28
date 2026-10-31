@@ -17,8 +17,8 @@ import type * as Prisma from "./prismaNamespace.js"
 
 const config: runtime.GetPrismaClientConfig = {
   "previewFeatures": [],
-  "clientVersion": "7.10.0",
-  "engineVersion": "0edf323efd1d98336f3f0a68684b56f689b900d3",
+  "clientVersion": "7.10.1",
+  "engineVersion": "d1b3f377ca835d73fd50954a5e22128b9ebdd6b8",
   "activeProvider": "postgresql",
   "inlineSchema": "generator client {\n  provider = \"prisma-client\"\n  output   = \"../src/generated/prisma\"\n}\n\ndatasource db {\n  provider = \"postgresql\"\n}\n\nmodel User {\n  id           String   @id @default(uuid()) @db.Uuid\n  email        String   @unique @db.VarChar(254)\n  passwordHash String   @map(\"password_hash\") @db.VarChar(255)\n  createdAt    DateTime @default(now()) @map(\"created_at\") @db.Timestamptz(6)\n  updatedAt    DateTime @updatedAt @map(\"updated_at\") @db.Timestamptz(6)\n\n  @@map(\"users\")\n}\n",
   "runtimeDataModel": {

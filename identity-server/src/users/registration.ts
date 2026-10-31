@@ -1,6 +1,6 @@
 import argon2 from "argon2";
 import { Prisma, type User } from "../generated/prisma/client.js";
-import { prisma } from "../db/prisma.js";
+import { getPrisma } from "../db/prisma.js";
 
 export type RegisterInput = {
   email: string;
@@ -26,14 +26,11 @@ function normalizeAndValidate(input: RegisterInput): RegisterInput {
   const password = input.password;
 
   // Kiểm tra định dạng cơ bản ở server; không thay thế xác minh email.
-  if (
-    email.length > 254 ||
-    !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
-  ) {
+  if (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     throw new RegistrationError("INVALID_INPUT", "Email không hợp lệ.");
   }
 
-  // Chính sách tối thiểu cho MVP; không tự động trim mật khẩu.
+  // Chính sách MVP; không tự động trim mật khẩu.
   if (password.length < 8 || password.length > 128) {
     throw new RegistrationError(
       "INVALID_INPUT",
@@ -53,7 +50,7 @@ export async function registerUser(input: RegisterInput): Promise<PublicUser> {
   });
 
   try {
-    const user = await prisma.user.create({
+    const user = await getPrisma().user.create({
       data: {
         email: valid.email,
         passwordHash,
@@ -66,7 +63,7 @@ export async function registerUser(input: RegisterInput): Promise<PublicUser> {
     });
     return user;
   } catch (error) {
-    // Unique index trong PostgreSQL là lớp bảo vệ cuối cùng trước đăng ký đồng thời.
+    // Unique index PostgreSQL là lớp bảo vệ cuối cùng cho request đồng thời.
     if (
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === "P2002"
