@@ -1,27 +1,41 @@
 # CI và kiểm tra bảo mật — S4
 
-Workflow `Security foundation` chạy khi mở/cập nhật PR và push vào main, với quyền contents:read và Node 24.22.0.
+Workflow `Security foundation` chạy khi mở/cập nhật PR và push vào `main`. Runner dùng Node 24.22.0, chỉ có quyền `contents: read`.
 
 | Job | Nội dung |
 | --- | --- |
-| applications | Phát hiện scaffold, yêu cầu lockfile khi có package.json; ghi Pending nếu chưa có |
-| backend | npm ci, npm test (gồm TypeScript build và test Discovery/CORS/Helmet), npm run test:headers |
-| frontend | npm ci, npm test, npm run build khi client-demo/package.json có trong cùng nhánh |
-| secrets | Chặn .env được Git theo dõi; Gitleaks 8.30.1 quét lịch sử Git và thư mục nguồn, che giá trị secret |
+| applications | Xác nhận mỗi ứng dụng có `package.json` và lockfile |
+| backend | Tạo PostgreSQL 17.11 tạm với database `app04_test`; `npm ci`, Prisma generate, deploy migration, `npm test` (build + Discovery/A1/headers), `npm audit --audit-level=high`, kiểm tra headers trên server đang chạy |
+| frontend | `npm ci`, `npm test`, `npm run build`, `npm audit --audit-level=high` cho React C1 |
+| secrets | Chặn file `.env` được Git theo dõi; Gitleaks 8.30.1 quét lịch sử và nguồn hiện tại, che giá trị phát hiện |
 
-Backend là kiểm tra bắt buộc ở nhánh S4 này. Frontend hiện chưa có trong nhánh: job sẽ skip và summary ghi Pending; không coi skip là frontend build đạt. Không tự checkout nhánh TV3 trong CI vì cần kiểm tra đúng code của commit đang review. Khi C1 được merge vào cùng nhánh tích hợp, job frontend tự chạy.
+PostgreSQL trong CI là service tạm của job, chỉ chứa dữ liệu test và tự mất khi job kết thúc. `DATABASE_URL` trỏ tới `app04_test`, đáp ứng safety guard trong test A1 và script smoke test headers. Giá trị user/password trong workflow chỉ dùng cho service test cục bộ của runner, không phải credential triển khai. Prisma Client được generate trước khi build/test; migration đã commit được áp dụng trước khi test. Không dùng database thật hoặc `.env` chứa secret trong CI.
 
 ## Chạy local
 
-Trong identity-server, với Node 24.22.0:
+Dùng Node 24.22.0. Với PostgreSQL test riêng đã tạo và tên database kết thúc bằng `_test`, đặt `DATABASE_URL` cho **terminal hiện tại** rồi chạy trong `identity-server/`:
+
+```text
+npm ci
+npm run db:generate
+npm run db:deploy
+npm test
+npm run test:headers
+npm audit --audit-level=high
+```
+
+Không chạy `db:deploy` hoặc test A1 với database development/production. `prisma.config.ts` cần `DATABASE_URL` ngay cả khi chạy `db:generate`. `npm test` gồm test A1 truy cập database; `test:headers` khởi động `server.ts`, nên cũng cần PostgreSQL test sẵn sàng. Nếu chỉ kiểm tra test không cần database, có thể chạy bản build với `node --test dist/test/discovery.test.js dist/test/security-headers.test.js`, sau đó `node --test tests/security/check-headers.test.mjs` từ repo root.
+
+Trong `client-demo/`:
 
 ```text
 npm ci
 npm test
-npm run test:headers
+npm run build
+npm audit --audit-level=high
 ```
 
-Từ thư mục repo:
+Từ repo root:
 
 ```text
 node tests/security/check-tracked-env.mjs
@@ -29,12 +43,8 @@ gitleaks git . --redact --log-opts=--all
 gitleaks dir . --redact
 ```
 
-Gitleaks có thể dùng binary local; Docker chỉ cần trong runner Ubuntu của CI. Không cần container hóa ứng dụng. Không thêm allowlist toàn thư mục để bỏ qua phát hiện.
+Gitleaks có thể chạy bằng binary local; Docker chỉ được dùng để chạy Gitleaks trong GitHub Actions. Script headers chọn cổng tạm, kiểm tra Discovery của server thật rồi dừng tiến trình. Xem [bằng chứng và giới hạn kiểm tra](security-validation.md).
 
-Script server-headers dùng cổng tạm, khởi động bản build O1 bằng cấu hình test, xác nhận issuer của Discovery, kiểm tra headers rồi dừng tiến trình. Không cần .env/credential thật và không sửa server đang chạy của thành viên khác. Với server đã chạy, có thể dùng `node tests/security/check-headers.mjs <URL>` từ repo.
+## Trạng thái PR
 
-## Trạng thái và review
-
-Xem [kết quả kiểm tra](security-validation.md). Chưa có GitHub Actions run vì chưa push/tạo PR. Sau khi được phép up, PR cần ghi `Refs #6`, nguồn phụ thuộc O1, các lệnh/kết quả local, frontend còn chờ C1 và URL Actions run. Chỉ đóng issue sau khi các kiểm tra bắt buộc trên PR đã chạy thực sự và được review; không dùng kết quả local để thay thế bằng chứng CI.
-
-Nhánh feat/security-ci được tạo từ commit O1 của TV2, không thay đổi nhánh TV2. Khi mở PR vào main trước khi O1 merge, diff sẽ bao gồm scaffold O1; cần ghi rõ phụ thuộc và chờ O1 merge để review riêng phần S4. Không tự merge các nhánh của nhóm.
+Nhánh S4 được ghép local với `main` sau khi O1, C1 và A1 đã merge. PR #9 vẫn là Draft và chưa được cập nhật với phần ghép này; kết quả CI cũ của PR #9 không chứng minh code tích hợp hiện tại đạt. Sau khi được phép push, đổi base PR #9 sang `main`, xem diff chỉ có phần S4, chờ cả backend/frontend/secrets jobs chạy trên đúng commit rồi nhờ người khác review. Chỉ đóng issue #6 sau khi các kiểm tra và review cần thiết hoàn thành.

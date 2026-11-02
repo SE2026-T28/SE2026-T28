@@ -5,6 +5,12 @@ import { createServer } from 'node:net';
 
 const cwd = fileURLToPath(new URL('../../identity-server/', import.meta.url));
 const check = fileURLToPath(new URL('./check-headers.mjs', import.meta.url));
+const databaseUrl = process.env.DATABASE_URL;
+if (!databaseUrl) throw new Error('Set DATABASE_URL to a dedicated PostgreSQL *_test database');
+const databaseName = decodeURIComponent(new URL(databaseUrl).pathname.replace(/^\/+/, ''));
+if (!/(?:^|_)test$/i.test(databaseName)) {
+  throw new Error('Header smoke test only runs against a database whose name ends with _test');
+}
 const probe = createServer().listen(0, '127.0.0.1');
 await once(probe, 'listening');
 const port = probe.address().port;
@@ -12,7 +18,7 @@ probe.close();
 await once(probe, 'close');
 const issuer = `http://localhost:${port}`;
 const target = `http://127.0.0.1:${port}/.well-known/openid-configuration`;
-// Isolated CI process: no .env or real credentials are needed.
+// Isolated CI process: DATABASE_URL points to the disposable test service.
 const server = spawn(process.execPath, ['dist/src/server.js'], {
   cwd,
   env: {
