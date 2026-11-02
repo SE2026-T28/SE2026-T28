@@ -47,4 +47,4 @@ Gitleaks có thể chạy bằng binary local; Docker chỉ được dùng để
 
 ## Trạng thái PR
 
-Nhánh S4 được ghép local với `main` sau khi O1, C1 và A1 đã merge. PR #9 vẫn là Draft và chưa được cập nhật với phần ghép này; kết quả CI cũ của PR #9 không chứng minh code tích hợp hiện tại đạt. Sau khi được phép push, đổi base PR #9 sang `main`, xem diff chỉ có phần S4, chờ cả backend/frontend/secrets jobs chạy trên đúng commit rồi nhờ người khác review. Chỉ đóng issue #6 sau khi các kiểm tra và review cần thiết hoàn thành.
+PR #9 đã được đánh dấu Ready for review với base `main`. Trên commit S4 `4a315df`, [CI run 41483592991](https://github.com/SE2026-T28/SE2026-T28/actions/runs/41483592991) đã chạy và đạt cả bốn job `applications`, `backend`, `frontend`, `secrets`; không có job bị skip. Quang đã Approve commit `4a315df`. Kết quả CI và review này chỉ xác nhận commit đó; commit cập nhật tài liệu này cần CI chạy lại trên đúng commit mới trước khi merge. Chỉ đóng issue #6 sau khi các kiểm tra và review cần thiết hoàn thành.
