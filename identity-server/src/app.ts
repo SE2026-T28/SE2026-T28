@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import express from "express";
-import helmet from "helmet";
 import { Provider } from "oidc-provider";
+import { securityHeaders } from "./security/headers.js";
 import type { AppConfig } from "./config.js";
 import { userRouter } from "./users/user.routes.js";
 
@@ -43,9 +43,9 @@ function registrationCors(allowedOrigin: string): express.RequestHandler {
 export function createApp(config: AppConfig) {
   const app = express();
   app.disable("x-powered-by");
+  app.use(securityHeaders(config.issuer));
 
-  // A1: security headers, JSON body parser và Registration API.
-  app.use(helmet());
+  // A1: JSON body parser và Registration API. S4 applies security headers above.
   app.use("/api/users", registrationCors(config.corsOrigin));
   app.use(express.json({ limit: "10kb" }));
   app.get("/health", (_req, res) => res.json({ status: "ok" }));

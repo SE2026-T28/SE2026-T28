@@ -17,7 +17,8 @@
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
     "db:status": "prisma migrate status",
-    "test": "npm run build && node --test dist/test/*.test.js"
+    "test": "npm run build && node --test dist/test/*.test.js",
+    "test:headers": "node --test ../tests/security/check-headers.test.mjs && node ../tests/security/server-headers.mjs"
   },
   "dependencies": {
     "@prisma/adapter-pg": "7.10.1",
