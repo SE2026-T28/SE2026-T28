@@ -162,4 +162,4 @@ Ghi lại kết quả thực tế của từng lệnh trong PR. Không đánh d�
 - Prisma client được khởi tạo lazy để O1 Discovery test có thể import `createApp()` mà không cần mở kết nối database.
 - `server.ts` kết nối Prisma trước khi listen và disconnect khi shutdown.
 - O1 hiện vẫn từ chối `NODE_ENV=production` vì storage OIDC và signing keys còn ở chế độ development.
-- Các phiên bản Prisma đang giữ theo A1 snapshot (`7.10.0`). Cần đối chiếu `npm audit` thực tế để xác định advisory và phiên bản vá tương thích; không tự nâng version hoặc dùng `npm audit fix --force` khi chưa có kết quả advisory.
+- Các phiên bản Prisma đang giữ theo A1 snapshot (`7.10.1`). Cần đối chiếu `npm audit` thực tế để xác định advisory và phiên bản vá tương thích; không tự nâng version hoặc dùng `npm audit fix --force` khi chưa có kết quả advisory.
