@@ -195,7 +195,7 @@ Một người cần nhận vai trò **phụ trách tích hợp luồng đăng n
 
 ```text
 SE2026-T28/
-├── identity-server/
+├── identity-server/        # cấu trúc đích; scaffold O1 hiện tại phẳng: src/app.ts, config.ts, server.ts
 │   ├── src/
 │   │   ├── provider/       # cấu hình, adapter, events
 │   │   ├── interactions/   # login, MFA mock, consent
@@ -221,7 +221,7 @@ SE2026-T28/
 └── README.md
 ```
 
-Thư mục chỉ được tạo khi có code/tài liệu tương ứng. Repo hiện tại mới có README và các thư mục khung; chưa có triển khai để xác nhận những quyết định kỹ thuật này.
+Thư mục chỉ được tạo khi có code/tài liệu tương ứng. Repo hiện đã có scaffold `identity-server/` (O1: provider + Discovery) và `client-demo/` (C1: login PKCE); `database/` và `tests/` vẫn là thư mục khung. Các quyết định về interaction, DB, token và resource API chưa có triển khai để xác nhận.
 
 ## 12. Quyết định cần nhóm chốt trước khi code đáng kể
 

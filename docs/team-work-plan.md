@@ -7,7 +7,7 @@
 
 ## Phiên bản tech stack dùng chung
 
-**Mốc tra cứu:** 15/10/2026. Đây là **các phiên bản cụ thể để toàn nhóm cùng dùng**, không phải khoảng phiên bản để mỗi người tự chọn. Repo hiện chưa có `package.json`/lockfile, nên tính tương thích cuối cùng phải được xác nhận bằng cài đặt, build và chạy Discovery Endpoint cùng React callback. Nếu một phiên bản cần đổi, cập nhật bảng này và lockfile trong cùng PR.
+**Mốc tra cứu:** 15/10/2026. Đây là **các phiên bản cụ thể để toàn nhóm cùng dùng**, không phải khoảng phiên bản để mỗi người tự chọn. `client-demo/` và `identity-server/` đều đã có `package.json`/lockfile ghim phiên bản; Prisma, `argon2`, Helmet, PostgreSQL và Playwright chưa được cài, nên tính tương thích cuối cùng phải được xác nhận bằng cài đặt, build và chạy Discovery Endpoint cùng React callback. Nếu một phiên bản cần đổi, cập nhật bảng này và lockfile trong cùng PR.
 
 | Thành phần | Phiên bản thống nhất | Áp dụng / ghi chú |
 | --- | --- | --- |
@@ -18,7 +18,7 @@
 | PostgreSQL | **17.11** | Cả nhóm dùng cùng bản 17.11; migration phải chạy được trên bản này |
 | `prisma`, `@prisma/client`, `@prisma/adapter-pg` | **7.10.0 cho cả ba** | Prisma cho dữ liệu ứng dụng; adapter OIDC vẫn phải theo API riêng của `oidc-provider` |
 | React và `react-dom` | **19.3.0 cho cả hai** | React demo client |
-| Vite / `@vitejs/plugin-react` | **8.3.0 / 6.1.2** | Công cụ build React |
+| Vite / `@vitejs/plugin-react` | **8.3.5 / 6.1.2** | Công cụ build React |
 | `oidc-client-ts` | **3.5.0** | Authorization Code + PKCE, callback và xác minh ID Token ở React |
 | `argon2` | **0.45.1** | TV1 dùng biến thể Argon2id cho password hashing |
 | Helmet | **8.3.0** | Security headers của Identity Server; chỉnh CSP theo UI thực tế |
@@ -27,7 +27,7 @@
 
 **Quy tắc khóa phiên bản:** khi khởi tạo, cài các dependency bằng `npm install --save-exact` hoặc `npm install -D --save-exact`, để `package.json` ghi số phiên bản cụ thể (ví dụ `"vitest": "5.0.4"`, không dùng `5.x`, `^5.0.4` hay `latest`). Commit `package-lock.json` ở root nếu dùng npm workspaces, hoặc trong từng app nếu cài riêng; CI dùng `npm ci`. Node được chốt trong `.nvmrc` và CI. `oidc-provider` và Prisma 7 dùng ESM, vì vậy backend đặt `"type": "module"` và cấu hình TypeScript phù hợp. Prisma 7 kết nối PostgreSQL qua `@prisma/adapter-pg`. Không cần Python `venv` cho stack này; môi trường chạy là Node.js + npm + PostgreSQL. [Node.js LTS](https://nodejs.org/uk/blog/release/v24.22.0), [`oidc-provider` 9.12.2](https://github.com/panva/node-oidc-provider/releases/tag/v9.12.2), [Prisma 7.10.0](https://github.com/prisma/orm/releases), [Prisma 7 và ESM/adapter](https://www.prisma.io/docs/orm/v7).
 
-**Nguồn kiểm tra frontend và công cụ:** [React 19.3](https://react.dev/blog/2026/09/09/react-19-3), [Vite 8.3.0](https://github.com/vitejs/vite/blob/main/packages/vite/CHANGELOG.md), [`@vitejs/plugin-react` 6.1.2](https://github.com/vitejs/vite-plugin-react/releases), [`oidc-client-ts` 3.5.0](https://github.com/authts/oidc-client-ts/releases), [Vitest 5.0.4](https://github.com/vitest-dev/vitest/releases), [Playwright 1.64.1](https://github.com/microsoft/playwright/releases), [PostgreSQL 17.11](https://www.postgresql.org/docs/17/release-17-11.html).
+**Nguồn kiểm tra frontend và công cụ:** [React 19.3](https://react.dev/blog/2026/09/09/react-19-3), [Vite 8.3.5](https://github.com/vitejs/vite/blob/main/packages/vite/CHANGELOG.md), [`@vitejs/plugin-react` 6.1.2](https://github.com/vitejs/vite-plugin-react/releases), [`oidc-client-ts` 3.5.0](https://github.com/authts/oidc-client-ts/releases), [Vitest 5.0.4](https://github.com/vitest-dev/vitest/releases), [Playwright 1.64.1](https://github.com/microsoft/playwright/releases), [PostgreSQL 17.11](https://www.postgresql.org/docs/17/release-17-11.html).
 
 ## 1. Kết quả cuối cùng cần bàn giao
 
@@ -75,7 +75,7 @@ Các giá trị dưới đây là **đề xuất để review**, chưa được 
 | User/claims | `sub` dùng ID ổn định của user trong DB, không dùng email có thể thay đổi; claim `email`/`profile` tối thiểu chỉ trả khi scope và cấu hình cho phép. Chốt kiểu ID và schema thực tế trong PR A1/O1. | TV1 + TV2 + TV3 |
 | Login interaction | TV1 xử lý mật khẩu/MFA trong interaction của Identity Server; TV2 cung cấp giao diện tích hợp và hoàn tất interaction sau khi TV1 báo thành công. Ghi rõ contract lỗi và session trong issue O2/A3 trước khi code. | TV1 + TV2 |
 | MFA mock | Chỉ dùng tài khoản demo và hiển thị mã thử nghiệm trong môi trường local; thử sai, hết hạn, dùng lại phải bị từ chối. Không gọi đây là MFA production. | TV1 + TV4 |
-| Phiên bản chung | Bảng phiên bản ở đầu tài liệu là mục tiêu, **chưa xác minh tương thích**. TV2/TV3 kiểm tra bằng cài đặt, build, Discovery và React callback rồi chốt `.nvmrc`/lockfile. Nhánh auth mẫu hiện dùng JS/Express 4/PostgreSQL 16, khác mục tiêu TypeScript/Express 5/PostgreSQL 17. | TV2 + TV3; TV1 phối hợp chuyển phần auth |
+| Phiên bản chung | Bảng phiên bản ở đầu tài liệu là mục tiêu. Đã cài đặt và chạy thành công trên Node 24.22.0: frontend (React, Vite, plugin-react, TypeScript, oidc-client-ts, Vitest) qua typecheck/test/build trong `client-demo/`; backend (Express, `oidc-provider`, TypeScript) qua build/test Discovery trong `identity-server/`. Prisma, `argon2`, Helmet, PostgreSQL và Playwright **chưa xác minh tương thích**. TV2/TV3 kiểm tra bằng cài đặt, build, Discovery và React callback rồi chốt `.nvmrc`/lockfile. Nhánh auth mẫu hiện dùng JS/Express 4/PostgreSQL 16, khác mục tiêu TypeScript/Express 5/PostgreSQL 17. | TV2 + TV3; TV1 phối hợp chuyển phần auth |
 
 Chính sách refresh/revoke, định dạng Access Token, cách API xác minh và logout sẽ được ghi thành quyết định riêng trước O5/S1/C4/C5; chưa tự chốt khi chưa có luồng OIDC chạy được.
 
