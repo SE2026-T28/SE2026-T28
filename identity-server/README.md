@@ -1,6 +1,6 @@
-# APP-04 Identity Server — O1
+# APP-04 Identity Server — O1/O2–O3
 
-Nền TypeScript + Express + `oidc-provider` cho issue O1. Hiện tại server công bố OIDC Discovery và đăng ký React demo dưới dạng public client. Login/MFA, Authorization Code + PKCE flow xuyên suốt, PostgreSQL adapter và token lifecycle thuộc các issue tiếp theo.
+Nền TypeScript + Express + `oidc-provider` cho O1 và phần Provider của O2–O3. Server công bố Discovery, đăng ký React demo dưới dạng public client và cung cấp interaction login/consent. Xác thực mật khẩu thật cần service A2–A3 của Nam; callback React cần C2 của Châu Anh. MFA, PostgreSQL adapter cho OIDC state và token lifecycle thuộc các issue tiếp theo.
 
 ## Chạy local
 
@@ -48,3 +48,15 @@ React client không có `client_secret`. Mỗi máy có thể sửa `.env` local
 Server hiện dùng adapter bộ nhớ và signing keys mặc định chỉ dành cho phát triển; trạng thái sẽ mất khi khởi động lại. Giao diện đăng nhập thử nghiệm mặc định của `oidc-provider` đã tắt để tránh đăng nhập bằng thông tin bất kỳ. Server từ chối chạy với `NODE_ENV=production` cho đến khi các issue về interaction, khóa ký và persistence được hoàn thành. Cookie signing key được tạo ngẫu nhiên mỗi lần chạy local; chưa dùng cho session bền vững.
 
 Nếu thiếu biến môi trường hoặc issuer/origin không khớp, server dừng với thông báo cấu hình. `.env.example` chỉ chứa giá trị local mẫu, không chứa secret.
+
+## Interaction M2 và điểm ghép A2–A3
+
+Provider redirect browser tới `GET /interaction/:uid` khi cần login hoặc consent. Form login gửi `POST /interaction/:uid/login` với `email`, `password`, `csrf`; consent gửi `POST /interaction/:uid/consent` với `allow`, `csrf`. Provider kiểm tra `uid` và prompt bằng `interactionDetails` trước khi xử lý. Form token tồn tại tối đa 10 phút và login giới hạn 5 lần thử cho mỗi interaction. Nam cần bổ sung giới hạn thử rộng hơn theo account/IP trong A2–A3.
+
+`createApp(config, authenticateUser)` nhận hàm `AuthenticateUser` từ `src/interactions/routes.ts`: `(email, password) => Promise<{ id, email } | null>`. Hàm của Nam phải chuẩn hóa email như A1, kiểm Argon2id và trả `null` chung cho email không tồn tại hoặc sai mật khẩu. Khi chưa truyền hàm này, login trả 503 và không hoàn tất interaction. `src/server.ts` hiện chưa nối service A2–A3; đây là blocker tích hợp còn mở, không dùng account giả trong server. Sau khi Nam có service, import và truyền vào `createApp` trong `server.ts`.
+
+Provider dùng UUID `users.id` làm `accountId`/`sub` và tra user theo ID trong PostgreSQL. Scope `email` có email thật nhưng chưa có `email_verified=true`. Trong Authorization Code flow đã kiểm thử, ID Token mang `sub`/`nonce`; email được lấy qua UserInfo khi scope tương ứng được cấp. React chỉ nên hiển thị email từ claim đã xác minh/cấp hợp lệ.
+
+Public client bắt buộc PKCE; `plain` và thiếu challenge bị từ chối, chỉ dùng S256. Test `test/interactions.test.ts` kiểm tra yêu cầu authorization và form lỗi độc lập DB. Test `test/oidc-flow.test.ts` dùng PostgreSQL với tên database kết thúc `_test`, user fixture và service giả để kiểm tra phần Provider: login, consent, code, ID Token `sub`, UserInfo email và code dùng lại. Test này **không** chứng minh xác thực Argon2id thật hay browser React callback; hai phần đó cần A2–A3/C2.
+
+OIDC state, grant, session và signing keys vẫn dùng bộ nhớ/default development của O1. Restart làm mất state và thay khóa; production tiếp tục bị chặn. Cookie signing key cũng đổi sau restart. Không lưu mật khẩu hoặc token vào log.
