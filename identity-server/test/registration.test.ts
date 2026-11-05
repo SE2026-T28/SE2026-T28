@@ -1,3 +1,8 @@
+import {
+  findUserById,
+  findUserByEmail,
+  authenticateUser,
+} from "../src/users/authentication.js";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { once } from "node:events";
@@ -188,4 +193,102 @@ test("Registration CORS chỉ cho phép origin của React demo", async () => {
     },
   });
   assert.equal(denied.status, 403);
+});
+
+test("tra cứu user thành công bằng ID", async () => {
+  const email = `a1-test-${randomUUID()}@example.com`;
+  const password = "M2-Test-Password-123!";
+
+  const response = await register(email, password);
+  assert.equal(response.status, 201);
+
+  const data = await response.json() as {
+    user: { id: string; email: string };
+  };
+
+  const account = await findUserById(data.user.id);
+
+  assert.ok(account);
+  assert.equal(account.id, data.user.id);
+  assert.equal(account.email, email);
+  assert.equal("passwordHash" in account, false);
+});
+
+test("tra cứu user thành công bằng email đã chuẩn hóa", async () => {
+  const email = `a1-test-${randomUUID()}@example.com`;
+  const password = "M2-Test-Password-123!";
+
+  await register(email, password);
+
+  const account = await findUserByEmail(
+    `  ${email.toUpperCase()}  `,
+  );
+
+  assert.ok(account);
+  assert.equal(account.email, email);
+});
+
+test("trả null khi tra cứu ID không tồn tại", async () => {
+  const account = await findUserById(randomUUID());
+
+  assert.equal(account, null);
+});
+
+test("trả null khi tra cứu email không tồn tại", async () => {
+  const account = await findUserByEmail(
+    `missing-${randomUUID()}@example.com`,
+  );
+
+  assert.equal(account, null);
+});
+
+test("xác thực thành công khi mật khẩu chính xác", async () => {
+  const email = `a1-test-${randomUUID()}@example.com`;
+  const password = "M2-Test-Password-123!";
+
+  await register(email, password);
+
+  const result = await authenticateUser(
+    ` ${email.toUpperCase()} `,
+    password,
+  );
+
+  assert.equal(result.success, true);
+
+  if (result.success) {
+    assert.equal(result.account.email, email);
+    assert.ok(result.account.id);
+    assert.equal("passwordHash" in result.account, false);
+  }
+});
+
+test("xác thực thất bại khi mật khẩu sai", async () => {
+  const email = `a1-test-${randomUUID()}@example.com`;
+
+  await register(email, "M2-Test-Password-123!");
+
+  const result = await authenticateUser(
+    email,
+    "Wrong-Password-123!",
+  );
+
+  assert.deepEqual(result, { success: false });
+});
+
+test("xác thực thất bại khi email không tồn tại", async () => {
+  const result = await authenticateUser(
+    `missing-${randomUUID()}@example.com`,
+    "M2-Test-Password-123!",
+  );
+
+  assert.deepEqual(result, { success: false });
+});
+
+test("xác thực thất bại với email sai định dạng", async () => {
+  const result = await authenticateUser(
+    "invalid-email",
+    "M2-Test-Password-123!",
+  );
+
+  assert.deepEqual(result, { success: false });
 });
