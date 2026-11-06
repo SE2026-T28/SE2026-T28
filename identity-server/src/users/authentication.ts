@@ -1,47 +1,14 @@
-
 import argon2 from "argon2";
 import type { User } from "../generated/prisma/client.js";
 import { getPrisma } from "../db/prisma.js";
+import { normalizeEmail } from "./email.js";
 
-/**
- * Dữ liệu account được phép cung cấp cho Provider.
- * Không bao gồm passwordHash.
- */
+export { normalizeEmail } from "./email.js";
+
+/** Public account data accepted by the OIDC Provider. */
 export type AccountForProvider = Pick<User, "id" | "email">;
 
-export type AuthenticationResult = {
-  success: true;
-  account: AccountForProvider;
-};
-
-export type AuthenticationFailure = {
-  success: false;
-};
-
-/**
- * Chuẩn hóa email giống A1:
- * trim() và chuyển về chữ thường.
- */
-export function normalizeEmail(email: string): string | null {
-  if (typeof email !== "string") {
-    return null;
-  }
-
-  const normalized = email.trim().toLowerCase();
-
-  if (
-    normalized.length > 254 ||
-    !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)
-  ) {
-    return null;
-  }
-
-  return normalized;
-}
-
-/**
- * Tra cứu account bằng ID.
- */
+/** Look up a user by stable UUID and expose only public account fields. */
 export async function findUserById(
   id: string,
 ): Promise<AccountForProvider | null> {
@@ -50,7 +17,7 @@ export async function findUserById(
   }
 
   return getPrisma().user.findUnique({
-    where: { id },
+    where: { id: id.trim() },
     select: {
       id: true,
       email: true,
@@ -58,14 +25,11 @@ export async function findUserById(
   });
 }
 
-/**
- * Tra cứu account bằng email.
- */
+/** Look up a user by normalized email and expose only public account fields. */
 export async function findUserByEmail(
   email: string,
 ): Promise<AccountForProvider | null> {
   const normalizedEmail = normalizeEmail(email);
-
   if (!normalizedEmail) {
     return null;
   }
@@ -80,26 +44,27 @@ export async function findUserByEmail(
 }
 
 /**
- * Kiểm tra thông tin đăng nhập.
+ * Verify credentials for the Identity Server's OIDC interaction handler.
  *
- * Thành công: trả về ID và email.
- * Thất bại: trả về cùng một kết quả false.
+ * Contract agreed for Provider integration:
+ *   authenticateUser(email, password) -> { id, email } | null
  *
- * Không bao giờ trả passwordHash ra ngoài.
+ * A null result is used for every credential failure (unknown account,
+ * malformed email, invalid password, or malformed stored hash). The caller
+ * must not reveal which check failed. passwordHash is never returned.
  */
 export async function authenticateUser(
   email: string,
   password: string,
-): Promise<AuthenticationResult | AuthenticationFailure> {
+): Promise<AccountForProvider | null> {
   const normalizedEmail = normalizeEmail(email);
-
   if (
     !normalizedEmail ||
     typeof password !== "string" ||
     password.length < 8 ||
     password.length > 128
   ) {
-    return { success: false };
+    return null;
   }
 
   const user = await getPrisma().user.findUnique({
@@ -112,30 +77,21 @@ export async function authenticateUser(
   });
 
   if (!user) {
-    return { success: false };
+    return null;
   }
-
-  let passwordMatches = false;
 
   try {
-    passwordMatches = await argon2.verify(
-      user.passwordHash,
-      password,
-    );
+    const passwordMatches = await argon2.verify(user.passwordHash, password);
+    if (!passwordMatches) {
+      return null;
+    }
   } catch {
-    // Hash không hợp lệ cũng không được tiết lộ cho người dùng.
-    return { success: false };
-  }
-
-  if (!passwordMatches) {
-    return { success: false };
+    // Corrupted/unsupported hashes fail closed without leaking account details.
+    return null;
   }
 
   return {
-    success: true,
-    account: {
-      id: user.id,
-      email: user.email,
-    },
+    id: user.id,
+    email: user.email,
   };
 }
