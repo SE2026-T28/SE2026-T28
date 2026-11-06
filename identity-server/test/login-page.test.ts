@@ -5,7 +5,7 @@ import { renderLoginPage } from "../src/users/login-page.js";
 test("login page post tới interaction login và gửi CSRF token cùng credentials", () => {
   const html = renderLoginPage({ uid: "uid-123", csrfToken: "csrf-456" });
   assert.match(html, /<form method="post" action="\/interaction\/uid-123\/login"/);
-  assert.match(html, /name="_csrf" value="csrf-456"/);
+  assert.match(html, /name="csrfToken" value="csrf-456"/);
   assert.match(html, /name="email" type="email"/);
   assert.match(html, /name="password" type="password"/);
   assert.match(html, /autocomplete="current-password"/);

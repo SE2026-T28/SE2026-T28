@@ -58,7 +58,7 @@ export function renderLoginPage(options: LoginPageOptions): string {
       <p>Đăng nhập vào tài khoản Identity Server để tiếp tục.</p>
       ${errorMarkup}
       <form method="post" action="${escapeHtml(action)}" accept-charset="UTF-8">
-        <input type="hidden" name="_csrf" value="${escapeHtml(options.csrfToken)}">
+        <input type="hidden" name="csrfToken" value="${escapeHtml(options.csrfToken)}">
         <div>
           <label for="email">Email</label>
           <input id="email" name="email" type="email" autocomplete="username" maxlength="254" required>
