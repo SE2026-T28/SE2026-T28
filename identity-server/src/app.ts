@@ -4,8 +4,8 @@ import { Provider } from "oidc-provider";
 import { securityHeaders } from "./security/headers.js";
 import type { AppConfig } from "./config.js";
 import { userRouter } from "./users/user.routes.js";
-import { getPrisma } from "./db/prisma.js";
 import { interactionRouter, type AuthenticateUser } from "./interactions/routes.js";
+import { findUserById } from "./users/authentication.js";
 
 /**
  * CORS riêng cho Registration API.
@@ -70,7 +70,7 @@ export function createApp(config: AppConfig, authenticateUser?: AuthenticateUser
     pkce: { required: () => true },
     interactions: { url: (_ctx, interaction) => `/interaction/${interaction.uid}` },
     async findAccount(_ctx, sub) {
-      const user = await getPrisma().user.findUnique({ where: { id: sub }, select: { id: true, email: true } });
+      const user = await findUserById(sub);
       if (!user) return undefined;
       return {
         accountId: user.id,

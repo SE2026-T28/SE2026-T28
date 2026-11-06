@@ -16,11 +16,11 @@
 
 Form gửi `POST /interaction/:uid/login` với các field:
 
-- `_csrf`: token gắn với session/interaction do server tạo.
+- `csrf`: token gắn với session/interaction do server tạo.
 - `email`: email người dùng.
 - `password`: mật khẩu người dùng.
 
-Interaction handler chịu trách nhiệm xác minh `_csrf`, kiểm tra interaction còn hiệu lực, áp dụng rate limit phù hợp, gọi `authenticateUser(email, password)` và chỉ gọi `interactionFinished` khi có account hợp lệ. Với credentials sai, render lại form với `error: "invalid_credentials"`; không phân biệt tài khoản không tồn tại và mật khẩu sai. Với interaction hết hạn, dùng `error: "expired_interaction"`.
+Interaction handler chịu trách nhiệm xác minh `csrf`, kiểm tra interaction còn hiệu lực, áp dụng rate limit phù hợp, gọi `authenticateUser(email, password)` và chỉ gọi `interactionFinished` khi có account hợp lệ. Với credentials sai, render lại form với `error: "invalid_credentials"`; không phân biệt tài khoản không tồn tại và mật khẩu sai. Với interaction hết hạn, dùng `error: "expired_interaction"`.
 
 Trang form không dùng inline JavaScript/CSS để tương thích CSP đang cấu hình trong `src/security/headers.ts`. Password chỉ được gửi trực tiếp tới Identity Server, không đi qua React demo.
 

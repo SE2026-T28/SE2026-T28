@@ -12,7 +12,7 @@ export type AccountForProvider = Pick<User, "id" | "email">;
 export async function findUserById(
   id: string,
 ): Promise<AccountForProvider | null> {
-  if (typeof id !== "string" || !id.trim()) {
+  if (typeof id !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id.trim())) {
     return null;
   }
 

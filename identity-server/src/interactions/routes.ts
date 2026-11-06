@@ -1,6 +1,8 @@
-import { randomBytes, timingSafeEqual } from "node:crypto";
+import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { Router, type Request, type Response } from "express";
 import type Provider from "oidc-provider";
+import { normalizeEmail } from "../users/email.js";
+import { renderLoginPage } from "../users/login-page.js";
 
 export interface AuthenticatedUser { id: string; email: string }
 export type AuthenticateUser = (email: string, password: string) => Promise<AuthenticatedUser | null>;
@@ -8,6 +10,9 @@ export type AuthenticateUser = (email: string, password: string) => Promise<Auth
 const forms = new Map<string, { token: string; attempts: number; expires: number }>();
 const MAX_ATTEMPTS = 5;
 const FORM_TTL_MS = 10 * 60 * 1000;
+const RATE_WINDOW_MS = 15 * 60 * 1000;
+const MAX_EMAIL_FAILURES = 5;
+const MAX_IP_FAILURES = 20;
 
 function escapeHtml(value: string): string {
   return value.replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]!);
@@ -31,17 +36,38 @@ function validToken(actual: unknown, expected: string): boolean {
   return timingSafeEqual(Buffer.from(actual), Buffer.from(expected));
 }
 
-function loginPage(uid: string, clientId: string, token: string, error = "") {
-  const action = `/interaction/${encodeURIComponent(uid)}/login`;
-  return page("Đăng nhập", `<p>Ứng dụng: ${escapeHtml(clientId)}</p>${error ? `<p role="alert">${escapeHtml(error)}</p>` : ""}<form method="post" action="${action}"><input type="hidden" name="csrf" value="${token}"><label>Email <input type="email" name="email" autocomplete="username" required></label><label>Mật khẩu <input type="password" name="password" autocomplete="current-password" required></label><button type="submit">Đăng nhập</button></form>`);
-}
-
 function consentPage(uid: string, clientId: string, scope: string, token: string) {
   return page("Cấp quyền", `<p>Ứng dụng ${escapeHtml(clientId)} yêu cầu: ${escapeHtml(scope)}</p><form method="post" action="/interaction/${encodeURIComponent(uid)}/consent"><input type="hidden" name="csrf" value="${token}"><button name="allow" value="yes" type="submit">Đồng ý</button><button name="allow" value="no" type="submit">Từ chối</button></form>`);
 }
 
 export function interactionRouter(provider: Provider, authenticateUser?: AuthenticateUser): Router {
   const router = Router();
+  const rateKey = randomBytes(32);
+  const failures = new Map<string, { count: number; expires: number }>();
+
+  function emailKey(email: string): string {
+    return `email:${createHmac("sha256", rateKey).update(email).digest("hex")}`;
+  }
+
+  function attemptCount(key: string): number {
+    const entry = failures.get(key);
+    if (!entry) return 0;
+    if (entry.expires <= Date.now()) {
+      failures.delete(key);
+      return 0;
+    }
+    return entry.count;
+  }
+
+  function recordFailure(key: string): void {
+    if (failures.size > 1000) {
+      for (const [storedKey, entry] of failures) {
+        if (entry.expires <= Date.now()) failures.delete(storedKey);
+      }
+    }
+    const count = attemptCount(key);
+    failures.set(key, { count: count + 1, expires: Date.now() + RATE_WINDOW_MS });
+  }
 
   async function details(req: Request, res: Response) {
     const interaction = await provider.interactionDetails(req, res);
@@ -55,7 +81,7 @@ export function interactionRouter(provider: Provider, authenticateUser?: Authent
       const form = newForm(interaction.uid);
       res.set("Cache-Control", "no-store");
       if (interaction.prompt.name === "login") {
-        return res.type("html").send(loginPage(interaction.uid, String(interaction.params.client_id ?? ""), form.token));
+        return res.type("html").send(renderLoginPage({ uid: interaction.uid, csrfToken: form.token }));
       }
       if (interaction.prompt.name === "consent") {
         return res.type("html").send(consentPage(interaction.uid, String(interaction.params.client_id ?? ""), String(interaction.params.scope ?? ""), form.token));
@@ -75,11 +101,20 @@ export function interactionRouter(provider: Provider, authenticateUser?: Authent
       const email = req.body?.email;
       const password = req.body?.password;
       if (typeof email !== "string" || typeof password !== "string" || email.length > 254 || password.length > 128) return res.sendStatus(400);
+      const normalizedEmail = normalizeEmail(email);
+      const identity = emailKey(normalizedEmail ?? email.trim().toLowerCase());
+      const ip = `ip:${req.ip ?? req.socket.remoteAddress ?? "unknown"}`;
+      if (attemptCount(identity) >= MAX_EMAIL_FAILURES || attemptCount(ip) >= MAX_IP_FAILURES) {
+        return res.status(429).type("html").send(page("Đăng nhập", "<p>Đã vượt quá số lần thử. Vui lòng thử lại sau.</p>"));
+      }
       form.attempts++;
       const user = await authenticateUser(email, password);
       if (!user) {
-        return res.status(401).type("html").send(loginPage(interaction.uid, String(interaction.params.client_id ?? ""), form.token, "Email hoặc mật khẩu không đúng."));
+        recordFailure(identity);
+        recordFailure(ip);
+        return res.status(401).type("html").send(renderLoginPage({ uid: interaction.uid, csrfToken: form.token, error: "invalid_credentials" }));
       }
+      failures.delete(identity);
       forms.delete(interaction.uid);
       return await provider.interactionFinished(req, res, { login: { accountId: user.id } }, { mergeWithLastSubmission: false });
     } catch (error) { next(error); }

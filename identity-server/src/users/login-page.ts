@@ -23,7 +23,7 @@ function escapeHtml(value: string): string {
 /**
  * Render the Identity Server-hosted login form used by the OIDC interaction.
  * No inline JS/CSS is emitted, so the existing Helmet CSP remains applicable.
- * The interaction handler must verify `_csrf` before authenticating credentials.
+ * The interaction handler must verify `csrf` before authenticating credentials.
  */
 export function renderLoginPage(options: LoginPageOptions): string {
   if (typeof options.uid !== "string" || !options.uid.trim()) {

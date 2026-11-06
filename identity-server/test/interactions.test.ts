@@ -86,5 +86,13 @@ test("failed login attempts are limited for an interaction even after form reloa
     for (let i = 0; i < 5; i++) assert.equal((await submit()).status, 401);
     assert.equal((await fetch(new URL(location, issuer), { headers: { cookie } })).status, 200);
     assert.equal((await submit()).status, 429);
+    const restart = await fetch(authUrl(issuer), { redirect: "manual" });
+    const anotherLocation = restart.headers.get("location")!;
+    const anotherCookie = restart.headers.getSetCookie().map(value => value.split(";")[0]).join("; ");
+    const anotherForm = await fetch(new URL(anotherLocation, issuer), { headers: { cookie: anotherCookie } });
+    const anotherCsrf = (await anotherForm.text()).match(/name="csrf" value="([a-f0-9]+)"/)?.[1];
+    assert.ok(anotherCsrf);
+    const acrossInteraction = await fetch(new URL(`${anotherLocation}/login`, issuer), { method: "POST", headers: { cookie: anotherCookie, "content-type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ email: "a@example.test", password: "wrong-password", csrf: anotherCsrf }), redirect: "manual" });
+    assert.equal(acrossInteraction.status, 429);
   }, async () => null);
 });
