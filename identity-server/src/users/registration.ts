@@ -1,6 +1,7 @@
 import argon2 from "argon2";
 import { Prisma, type User } from "../generated/prisma/client.js";
 import { getPrisma } from "../db/prisma.js";
+import { normalizeEmail } from "./email.js";
 
 export type RegisterInput = {
   email: string;
@@ -18,15 +19,15 @@ export class RegistrationError extends Error {
 }
 
 function normalizeAndValidate(input: RegisterInput): RegisterInput {
-  if (typeof input.email !== "string" || typeof input.password !== "string") {
+  if (typeof input.password !== "string") {
     throw new RegistrationError("INVALID_INPUT", "Email và mật khẩu là bắt buộc.");
   }
 
-  const email = input.email.trim().toLowerCase();
+  const email = normalizeEmail(input.email);
   const password = input.password;
 
   // Kiểm tra định dạng cơ bản ở server; không thay thế xác minh email.
-  if (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+  if (!email) {
     throw new RegistrationError("INVALID_INPUT", "Email không hợp lệ.");
   }
 
