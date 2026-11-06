@@ -6,6 +6,8 @@ export interface OidcConfig {
   scope: string;
 }
 
+export class ConfigError extends Error {} // safe to show: only names env vars
+
 type EnvRecord = Record<string, string | undefined>;
 
 const REQUIRED = {
@@ -25,13 +27,13 @@ export function readConfig(env: EnvRecord): OidcConfig {
     else missing.push(name);
   }
   if (missing.length > 0) {
-    throw new Error(
+    throw new ConfigError(
       `Missing env var(s): ${missing.join(", ")}. Copy .env.example to .env.`,
     );
   }
   const config = out as OidcConfig;
   if (!config.scope.split(/\s+/).includes("openid")) {
-    throw new Error('VITE_OIDC_SCOPE must include the "openid" scope.');
+    throw new ConfigError('VITE_OIDC_SCOPE must include the "openid" scope.');
   }
   return config;
 }
