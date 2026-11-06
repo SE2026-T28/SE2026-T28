@@ -29,7 +29,7 @@ function checkAuthorizeUrl(raw: string) {
   expect(p.get("code_challenge")).toMatch(/^[A-Za-z0-9_-]{43}$/);
   expect(p.get("state")).toBeTruthy();
   // oidc-client-ts 3.5 never auto-generates a nonce; it is sent only when passed explicitly
-  // (e.g. signinRedirect({ nonce })). C1 passes none; C2 will pass a random one.
+  // (e.g. signinRedirect({ nonce })). This raw OidcClient request passes none; see session.test.ts for login().
   expect(p.has("nonce")).toBe(false);
   expect(raw).toContain("redirect_uri=http%3A%2F%2Flocalhost%3A5173%2Fcallback");
 }
