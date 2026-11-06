@@ -4,6 +4,8 @@ import { Provider } from "oidc-provider";
 import { securityHeaders } from "./security/headers.js";
 import type { AppConfig } from "./config.js";
 import { userRouter } from "./users/user.routes.js";
+import { interactionRouter, type AuthenticateUser } from "./interactions/routes.js";
+import { findUserById } from "./users/authentication.js";
 
 /**
  * CORS riêng cho Registration API.
@@ -40,7 +42,7 @@ function registrationCors(allowedOrigin: string): express.RequestHandler {
   };
 }
 
-export function createApp(config: AppConfig) {
+export function createApp(config: AppConfig, authenticateUser?: AuthenticateUser) {
   const app = express();
   app.disable("x-powered-by");
   app.use(securityHeaders(config.issuer));
@@ -64,6 +66,19 @@ export function createApp(config: AppConfig) {
       },
     ],
     scopes: config.scopes,
+    claims: { email: ["email"] },
+    pkce: { required: () => true },
+    interactions: { url: (_ctx, interaction) => `/interaction/${interaction.uid}` },
+    async findAccount(_ctx, sub) {
+      const user = await findUserById(sub);
+      if (!user) return undefined;
+      return {
+        accountId: user.id,
+        async claims(_use, scope) {
+          return scope.split(" ").includes("email") ? { sub: user.id, email: user.email } : { sub: user.id };
+        },
+      };
+    },
     clientBasedCORS(_ctx, origin, client) {
       return origin === config.corsOrigin && client.clientId === config.clientId;
     },
@@ -71,6 +86,7 @@ export function createApp(config: AppConfig) {
     features: { devInteractions: { enabled: false } },
   });
 
+  app.use("/interaction", express.urlencoded({ extended: false, limit: "10kb" }), interactionRouter(provider, authenticateUser));
   app.use(provider.callback());
 
   // Body parser errors are returned using the Registration API error shape.
