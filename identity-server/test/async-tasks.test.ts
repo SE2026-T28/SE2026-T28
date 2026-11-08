@@ -95,6 +95,21 @@ test("T08b failed work never invokes the completion effect", async () => {
   assert.equal(effects, 0);
 });
 
+test("T08c completion callback failure is terminal and retry does not invoke it twice", async () => {
+  let invocations = 0;
+  const store = new TaskStore({ stepDelayMs: 1, onComplete: () => { invocations++; throw new Error("injected failure"); } });
+  const result = store.submit("vt114-t08c-effect", { workUnits: 2 });
+  assert.equal(result.kind, "accepted");
+  if (result.kind !== "accepted") return;
+  const deadline = performance.now() + 3000;
+  while (store.get(result.task.id)?.status !== "failed" && performance.now() < deadline) {
+    await new Promise(resolve => setTimeout(resolve, 2));
+  }
+  assert.equal(store.get(result.task.id)?.status, "failed");
+  assert.equal(store.submit("vt114-t08c-effect", { workUnits: 2 }).kind, "accepted");
+  assert.equal(invocations, 1);
+});
+
 test("T04 conflicting payload with same key returns 409", async () => {
   const original = await submit("vt114-t04-conflict", { workUnits: 3 });
   assert.equal(original.status, 202);

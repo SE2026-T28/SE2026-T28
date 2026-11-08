@@ -1,0 +1,141 @@
+
+> app04-identity-server@0.1.0 test
+> npm run build && node --test dist/test/*.test.js
+
+
+> app04-identity-server@0.1.0 prebuild
+> node scripts/check-node.cjs
+
+
+> app04-identity-server@0.1.0 build
+> tsc -p tsconfig.json
+
+oidc-provider WARNING: a quick start development-only in-memory adapter is used, you MUST change it in order to not lose all stateful provider data upon restart and to be able to share these between processes
+oidc-provider WARNING: quick start development-only signing keys are used, you are expected to provide your own in the configuration "jwks" property
+✔ T01/T02 valid POST acknowledges and status reaches 100% (158.902357ms)
+✔ T03 concurrent retries share one task ID (220.053923ms)
+✔ T03b one completion effect survives 20 same-key submissions (9.07661ms)
+✔ T08b failed work never invokes the completion effect (4.846059ms)
+✔ T04 conflicting payload with same key returns 409 (5.923294ms)
+✔ T05/T07 invalid key and work units are rejected (5.80303ms)
+✔ T06 boundary workUnits=5 is accepted (mutation sentinel) (212.799136ms)
+✔ T08 failed task remains failed on same-key retry (89.229486ms)
+✔ T09 unknown task returns 404 (0.76464ms)
+✔ T10 demo page contains same-origin progress client (1.019075ms)
+✔ T11 pairwise combinations cover work units, outcome and retry timing (978.615393ms)
+oidc-provider WARNING: a quick start development-only in-memory adapter is used, you MUST change it in order to not lose all stateful provider data upon restart and to be able to share these between processes
+oidc-provider WARNING: quick start development-only signing keys are used, you are expected to provide your own in the configuration "jwks" property
+✔ tra cứu user thành công bằng ID và chỉ trả dữ liệu công khai (247.542008ms)
+✔ tra cứu user thành công bằng email đã trim và chuẩn hóa chữ thường (92.80523ms)
+✔ trả null khi tra cứu ID không tồn tại hoặc rỗng (2.191001ms)
+✔ trả null khi tra cứu email không tồn tại hoặc sai định dạng (2.501376ms)
+✔ authenticateUser trả account { id, email } khi mật khẩu chính xác (143.294819ms)
+✔ authenticateUser trả null khi mật khẩu sai (151.390754ms)
+✔ authenticateUser trả null khi email không tồn tại (1.514887ms)
+✔ authenticateUser trả null khi email sai định dạng hoặc mật khẩu ngoài policy (0.23776ms)
+oidc-provider WARNING: a quick start development-only in-memory adapter is used, you MUST change it in order to not lose all stateful provider data upon restart and to be able to share these between processes
+oidc-provider WARNING: quick start development-only signing keys are used, you are expected to provide your own in the configuration "jwks" property
+✔ Discovery publishes the agreed issuer and public-client endpoints (90.522429ms)
+✔ Local configuration rejects a mismatched client origin (1.845616ms)
+✔ Production configuration is rejected while storage and keys are development-only (0.457611ms)
+oidc-provider WARNING: a quick start development-only in-memory adapter is used, you MUST change it in order to not lose all stateful provider data upon restart and to be able to share these between processes
+oidc-provider WARNING: quick start development-only signing keys are used, you are expected to provide your own in the configuration "jwks" property
+oidc-provider NOTICE: default ttl.Interaction function called, you SHOULD change it in order to define the expiration for Interaction artifacts.
+oidc-provider WARNING: a quick start development-only in-memory adapter is used, you MUST change it in order to not lose all stateful provider data upon restart and to be able to share these between processes
+oidc-provider WARNING: quick start development-only signing keys are used, you are expected to provide your own in the configuration "jwks" property
+✖ valid S256 request reaches login interaction; unavailable auth cannot create a session (69.715593ms)
+oidc-provider NOTICE: default renderError function called, you SHOULD change it in order to customize the look of the error page.
+oidc-provider WARNING: a quick start development-only in-memory adapter is used, you MUST change it in order to not lose all stateful provider data upon restart and to be able to share these between processes
+oidc-provider WARNING: quick start development-only signing keys are used, you are expected to provide your own in the configuration "jwks" property
+✔ missing PKCE, plain PKCE and wrong redirect URI are rejected (35.310279ms)
+✖ failed login attempts are limited for an interaction even after form reload (20.346307ms)
+✔ login page post tới interaction login và gửi CSRF token cùng credentials (0.96376ms)
+✔ login page URL-encode uid and HTML-escape CSRF token (0.259434ms)
+✔ login page displays expired interaction error without exposing credentials (0.128874ms)
+✔ login page requires interaction uid and a CSRF token (1.147675ms)
+oidc-provider WARNING: a quick start development-only in-memory adapter is used, you MUST change it in order to not lose all stateful provider data upon restart and to be able to share these between processes
+oidc-provider WARNING: quick start development-only signing keys are used, you are expected to provide your own in the configuration "jwks" property
+oidc-provider NOTICE: default ttl.Interaction function called, you SHOULD change it in order to define the expiration for Interaction artifacts.
+✖ registered account completes login, consent and one-use S256 code (311.888367ms)
+oidc-provider WARNING: a quick start development-only in-memory adapter is used, you MUST change it in order to not lose all stateful provider data upon restart and to be able to share these between processes
+oidc-provider WARNING: quick start development-only signing keys are used, you are expected to provide your own in the configuration "jwks" property
+✔ đăng ký thành công, lưu Argon2id và không trả password hash (326.465227ms)
+✔ từ chối email trùng, không phân biệt chữ hoa/thường (150.051319ms)
+✔ từ chối email sai định dạng (3.511086ms)
+✔ từ chối mật khẩu ngắn hơn 8 ký tự (3.176433ms)
+✔ hai request đồng thời cùng email chỉ tạo một người dùng (121.269405ms)
+✔ Registration CORS chỉ cho phép origin của React demo (3.671506ms)
+✔ Security headers for configured issuer http://localhost:3000 (32.828201ms)
+oidc-provider WARNING: a quick start development-only in-memory adapter is used, you MUST change it in order to not lose all stateful provider data upon restart and to be able to share these between processes
+oidc-provider WARNING: quick start development-only signing keys are used, you are expected to provide your own in the configuration "jwks" property
+✔ Security headers for configured issuer https://identity.example.test (11.105447ms)
+✔ HTTP headers configuration rejects non-local issuers (0.683553ms)
+✔ Integrated registration and health routes keep S4 headers and A1 CORS (14.078262ms)
+ℹ tests 40
+ℹ suites 0
+ℹ pass 37
+ℹ fail 3
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 2119.167327
+
+✖ failing tests:
+
+test at dist/test/interactions.test.js:43:1
+✖ valid S256 request reaches login interaction; unavailable auth cannot create a session (69.715593ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+
+  404 !== 200
+
+      at file:///home/quangrobotics/SE2026-T28/identity-server/dist/test/interactions.test.js:51:16
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async serve (file:///home/quangrobotics/SE2026-T28/identity-server/dist/test/interactions.test.js:23:9)
+      at async TestContext.<anonymous> (file:///home/quangrobotics/SE2026-T28/identity-server/dist/test/interactions.test.js:44:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 404,
+    expected: 200,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at dist/test/interactions.test.js:78:1
+✖ failed login attempts are limited for an interaction even after form reload (20.346307ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(csrf)
+
+      at file:///home/quangrobotics/SE2026-T28/identity-server/dist/test/interactions.test.js:85:16
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async serve (file:///home/quangrobotics/SE2026-T28/identity-server/dist/test/interactions.test.js:23:9)
+      at async TestContext.<anonymous> (file:///home/quangrobotics/SE2026-T28/identity-server/dist/test/interactions.test.js:79:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at dist/test/oidc-flow.test.js:9:1
+✖ registered account completes login, consent and one-use S256 code (311.888367ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(csrf)
+
+      at TestContext.<anonymous> (file:///home/quangrobotics/SE2026-T28/identity-server/dist/test/oidc-flow.test.js:52:16)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }

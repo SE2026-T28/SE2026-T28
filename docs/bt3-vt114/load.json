@@ -1,0 +1,11 @@
+{
+  "node": "v24.22.0",
+  "simulatedTasks": 200,
+  "workUnitsPerTask": 5,
+  "stepDelayMs": 40,
+  "acknowledgmentP95Ms": 350.74,
+  "completionP95Ms": 556.42,
+  "targetMs": 5000,
+  "pass": true,
+  "scope": "single local Node process, loopback HTTP, in-memory demo work; no database, browser, external service or durable queue"
+}

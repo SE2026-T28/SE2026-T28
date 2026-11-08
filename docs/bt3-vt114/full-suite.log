@@ -1,0 +1,53 @@
+
+> app04-identity-server@0.1.0 test
+> npm run build && node --test dist/test/*.test.js
+
+
+> app04-identity-server@0.1.0 prebuild
+> node scripts/check-node.cjs
+
+
+> app04-identity-server@0.1.0 build
+> tsc -p tsconfig.json
+
+oidc-provider WARNING: a quick start development-only in-memory adapter is used, you MUST change it in order to not lose all stateful provider data upon restart and to be able to share these between processes
+oidc-provider WARNING: quick start development-only signing keys are used, you are expected to provide your own in the configuration "jwks" property
+✔ T01/T02 valid POST acknowledges and status reaches 100% (159.913173ms)
+✔ T03 concurrent retries share one task ID (213.439635ms)
+✔ T03b one completion effect survives 20 same-key submissions (6.85214ms)
+✔ T08b failed work never invokes the completion effect (5.206858ms)
+✔ T08c completion callback failure is terminal and retry does not invoke it twice (4.394752ms)
+✔ T04 conflicting payload with same key returns 409 (6.037924ms)
+✔ T05/T07 invalid key and work units are rejected (10.36434ms)
+✔ T06 boundary workUnits=5 is accepted (mutation sentinel) (215.007852ms)
+✔ T08 failed task remains failed on same-key retry (89.666128ms)
+✔ T09 unknown task returns 404 (0.802347ms)
+✔ T10 demo page contains same-origin progress client (1.094111ms)
+✔ T11 pairwise combinations cover work units, outcome and retry timing (984.521186ms)
+oidc-provider WARNING: a quick start development-only in-memory adapter is used, you MUST change it in order to not lose all stateful provider data upon restart and to be able to share these between processes
+oidc-provider WARNING: quick start development-only signing keys are used, you are expected to provide your own in the configuration "jwks" property
+✔ Discovery publishes the agreed issuer and public-client endpoints (57.143164ms)
+✔ Local configuration rejects a mismatched client origin (0.498215ms)
+✔ Production configuration is rejected while storage and keys are development-only (0.283832ms)
+oidc-provider WARNING: a quick start development-only in-memory adapter is used, you MUST change it in order to not lose all stateful provider data upon restart and to be able to share these between processes
+oidc-provider WARNING: quick start development-only signing keys are used, you are expected to provide your own in the configuration "jwks" property
+✔ đăng ký thành công, lưu Argon2id và không trả password hash (258.130526ms)
+✔ từ chối email trùng, không phân biệt chữ hoa/thường (118.122429ms)
+✔ từ chối email sai định dạng (1.900871ms)
+✔ từ chối mật khẩu ngắn hơn 8 ký tự (1.724143ms)
+✔ hai request đồng thời cùng email chỉ tạo một người dùng (98.857711ms)
+✔ Registration CORS chỉ cho phép origin của React demo (2.295567ms)
+✔ Security headers for configured issuer http://localhost:3000 (27.79523ms)
+oidc-provider WARNING: a quick start development-only in-memory adapter is used, you MUST change it in order to not lose all stateful provider data upon restart and to be able to share these between processes
+oidc-provider WARNING: quick start development-only signing keys are used, you are expected to provide your own in the configuration "jwks" property
+✔ Security headers for configured issuer https://identity.example.test (7.316592ms)
+✔ HTTP headers configuration rejects non-local issuers (0.535586ms)
+✔ Integrated registration and health routes keep S4 headers and A1 CORS (10.64762ms)
+ℹ tests 25
+ℹ suites 0
+ℹ pass 25
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1953.148077
