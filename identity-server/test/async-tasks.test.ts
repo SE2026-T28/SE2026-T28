@@ -4,6 +4,7 @@ import type { Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { createApp } from "../src/app.js";
 import { readConfig } from "../src/config.js";
+import { TaskStore } from "../src/tasks/store.js";
 
 const config = readConfig({
   NODE_ENV: "test", PORT: "3000", OIDC_ISSUER: "http://localhost:3000",
@@ -62,6 +63,36 @@ test("T03 concurrent retries share one task ID", async () => {
   const bodies = await Promise.all(responses.map(response => response.json() as Promise<{ id: string }>));
   assert.equal(new Set(bodies.map(body => body.id)).size, 1);
   assert.equal((await terminal(bodies[0].id)).status, "succeeded");
+});
+
+test("T03b one completion effect survives 20 same-key submissions", async () => {
+  let effects = 0;
+  const store = new TaskStore({ stepDelayMs: 1, onComplete: () => { effects++; } });
+  const submissions = Array.from({ length: 20 }, () => store.submit("vt114-t03b-once", { workUnits: 5 }));
+  assert.ok(submissions.every(result => result.kind === "accepted"));
+  const ids = submissions.map(result => result.kind === "accepted" ? result.task.id : "");
+  assert.equal(new Set(ids).size, 1);
+  const deadline = performance.now() + 3000;
+  while (store.get(ids[0])?.status !== "succeeded" && performance.now() < deadline) {
+    await new Promise(resolve => setTimeout(resolve, 2));
+  }
+  assert.equal(store.get(ids[0])?.status, "succeeded");
+  assert.equal(effects, 1);
+});
+
+test("T08b failed work never invokes the completion effect", async () => {
+  let effects = 0;
+  const store = new TaskStore({ stepDelayMs: 1, onComplete: () => { effects++; } });
+  const first = store.submit("vt114-t08b-fail", { workUnits: 3, failAt: 2 });
+  assert.equal(first.kind, "accepted");
+  if (first.kind !== "accepted") return;
+  const deadline = performance.now() + 3000;
+  while (store.get(first.task.id)?.status !== "failed" && performance.now() < deadline) {
+    await new Promise(resolve => setTimeout(resolve, 2));
+  }
+  assert.equal(store.get(first.task.id)?.status, "failed");
+  assert.equal(store.submit("vt114-t08b-fail", { workUnits: 3, failAt: 2 }).kind, "accepted");
+  assert.equal(effects, 0);
 });
 
 test("T04 conflicting payload with same key returns 409", async () => {
