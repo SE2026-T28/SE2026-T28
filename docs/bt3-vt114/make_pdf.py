@@ -13,7 +13,6 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.platypus import (
     HRFlowable,
-    KeepTogether,
     PageBreak,
     Paragraph,
     SimpleDocTemplate,
@@ -35,11 +34,11 @@ GRAY = colors.HexColor("#4D5962")
 
 styles = {
     "title": ParagraphStyle("title", fontName="DejaVu-Bold", fontSize=16, leading=20, textColor=NAVY, spaceAfter=8),
-    "subtitle": ParagraphStyle("subtitle", fontName="DejaVu", fontSize=9.4, leading=13, textColor=GRAY, spaceAfter=11),
-    "h1": ParagraphStyle("h1", fontName="DejaVu-Bold", fontSize=12, leading=16, textColor=NAVY, spaceBefore=10, spaceAfter=6),
+    "subtitle": ParagraphStyle("subtitle", fontName="DejaVu", fontSize=9.4, leading=13, textColor=GRAY, spaceAfter=7),
+    "h1": ParagraphStyle("h1", fontName="DejaVu-Bold", fontSize=11.5, leading=15, textColor=NAVY, spaceBefore=7, spaceAfter=4, keepWithNext=True),
     "h2": ParagraphStyle("h2", fontName="DejaVu-Bold", fontSize=10, leading=13.5, textColor=TEAL, spaceBefore=7, spaceAfter=4),
-    "body": ParagraphStyle("body", fontName="DejaVu", fontSize=9, leading=13.2, spaceAfter=6),
-    "small": ParagraphStyle("small", fontName="DejaVu", fontSize=8.2, leading=11.5, spaceAfter=4),
+    "body": ParagraphStyle("body", fontName="DejaVu", fontSize=9, leading=12.3, spaceAfter=4),
+    "small": ParagraphStyle("small", fontName="DejaVu", fontSize=8.2, leading=11, spaceAfter=3),
     "tiny": ParagraphStyle("tiny", fontName="DejaVu", fontSize=7.5, leading=10.4),
     "tablehead": ParagraphStyle("tablehead", fontName="DejaVu-Bold", fontSize=7.8, leading=10.4, textColor=colors.white),
     "callout": ParagraphStyle("callout", fontName="DejaVu-Bold", fontSize=8.8, leading=12, textColor=NAVY, spaceAfter=4),
@@ -66,8 +65,8 @@ def table(headers: list[str], rows: list[list[str]], widths: list[float], tiny: 
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
         ("LEFTPADDING", (0, 0), (-1, -1), 5),
         ("RIGHTPADDING", (0, 0), (-1, -1), 5),
-        ("TOPPADDING", (0, 0), (-1, -1), 4),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+        ("TOPPADDING", (0, 0), (-1, -1), 3),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
     ]))
     return t
 
@@ -78,10 +77,11 @@ def bullets(items: list[str], kind: str = "body") -> list[Paragraph]:
 
 story: list = []
 
-# Main page 1 — specification and plan.
+# Main content — sections flow naturally across A4 pages.
 story += [p("BÀI TẬP CÁ NHÂN 3 · APP-04 · VT-114", "title")]
 story += [p("Đặng Minh Quang · MSSV 24002070 · SE2026-T28 · Thành viên · Kiểm tra repo: 08/11/2026", "subtitle")]
-story += [p("Repository: <link href='https://github.com/SE2026-T28/SE2026-T28'>github.com/SE2026-T28/SE2026-T28</link> · Draft PR: <link href='https://github.com/SE2026-T28/SE2026-T28/pull/19'>#19</link> · Baseline <b>4c8e96e</b>", "small")]
+story += [p("Repository: <link href='https://github.com/SE2026-T28/SE2026-T28'>github.com/SE2026-T28/SE2026-T28</link> · Draft PR: <link href='https://github.com/SE2026-T28/SE2026-T28/pull/19'>#19</link> · Baseline <b>4c8e96e4c8eadb934be30a8efc220fa93919b60a</b>", "small")]
+story += [p("<b>Cam kết:</b> Tôi chịu trách nhiệm về toàn bộ code, test và nội dung bài làm; tôi đã khai báo việc sử dụng AI.", "small")]
 story += section("1. Specification và invariant")
 story += [p("<b>Problem statement.</b> APP-04 chưa có task/status API. Tác vụ kéo dài cần trả phản hồi nhanh, tiếp tục bất đồng bộ và cho người dùng xem tiến trình; retry không được tạo task hoặc tác động hoàn tất trùng. Slice dùng một tác vụ demo độc lập với OIDC/Registration.")]
 story += bullets([
@@ -95,9 +95,8 @@ story += section("2. AI-assisted plan trước code")
 story += [p("<b>Prompt chính:</b> “Ở baseline 4c8e96e, lập plan test-first cho tác vụ dài bất đồng bộ, progress, retry không trùng; nêu API, pairwise, 200 tải, mutation &gt;→&gt;=, file sửa. Chưa code; giữ contract OIDC/Registration.”")]
 story += [p("<b>Output AI ban đầu:</b> chuyển POST /api/users/register thành job Redis; thêm tiến trình vào React OIDC dashboard; test retry/tải/mutation. <b>Review repo:</b> bác bỏ chuyển Registration vì A1 đang trả 201/409 và email có unique index PostgreSQL; bác bỏ Redis vì package.json không có queue/Redis. Sửa thêm: React callback còn placeholder trên baseline nên dùng trang demo same-origin; thay sleep cố định bằng polling deadline.")]
 story += [p("<b>Assumptions/file plan:</b> demo không ghi giao dịch/thông báo thật; task có 1–5 bước, failAt phục vụ test. Sửa app.ts, thêm tasks/store.ts, tasks/routes.ts, async-tasks.test.ts, load/browser harness và README. Không đổi Prisma schema, Registration hoặc client-demo.", "small")]
-story += [PageBreak()]
 
-# Main page 2 — strategy and test cases.
+# Strategy and test cases.
 story += section("3. Test strategy dựa trên risk")
 story += [p("<b>Unit:</b> state transition, key→ID, callback một lần, failure. <b>Integration/API:</b> HTTP 202/400/409/404, progress, concurrent retries. <b>E2E:</b> Chrome headless bấm form thật và thấy 100%. Không lặp lại test OIDC Discovery, Argon2 hay Prisma unique: các suite hiện có sở hữu hợp đồng đó.")]
 cases = [
@@ -116,9 +115,8 @@ cases = [
 ]
 story += [table(["ID", "Risk/AC", "Level", "Precondition/input", "Expected", "Ưu tiên"], cases, [57, 68, 56, 129, 146, 45], tiny=True)]
 story += [Spacer(1, 7), p("<b>Negative/failure:</b> T05/T07 là negative input; T04 là conflict; T08 và T08c tiêm lỗi giữa tác vụ/callback. T03b đo tác động hoàn tất một lần thay vì chỉ so ID.", "small")]
-story += [PageBreak()]
 
-# Main page 3 — pairwise and test first.
+# Pairwise and test first.
 story += section("4. Pairwise/combinatorial và test-first")
 story += [p("Ba trục: workUnits {2,3,5}, outcome {success, fail-first, fail-last}, retry {none, during, after}. Toàn bộ 3³ = 27 bộ; chín hàng dưới là ma trận Latin: mỗi cặp giá trị giữa hai trục xuất hiện đúng một lần. Chọn workUnits ≥2 để fail-first/fail-last là hai input khác nhau; biên dưới 1 và input sai 0/6 có test riêng.")]
 pair_rows = [
@@ -132,9 +130,8 @@ story += [p("<b>AI sinh test:</b> đã xóa case “GET status hai lần đều 
 story += [p("<b>Red trước code:</b> nhánh từ baseline <b>4c8e96e</b>; plan <b>a8b4e4a</b>, spec <b>fed674d</b>, test-only commit <b>3f4eb50</b>. Chạy `node --test --test-name-pattern='T01/T02' dist/test/async-tasks.test.js`: mong 202, thực tế <b>404</b> (red.log). Đây là fail đúng lý do endpoint chưa có, không phải fail compile.")]
 story += [p("<b>AI-assisted patch:</b> commit <b>eddf66f</b> thêm TaskStore, route, trang tiến trình. Review diff phát hiện union TypeScript chưa narrow và script UI một dòng khó đọc; đã sửa trước chấp nhận. Test slice cuối <b>12/12 pass</b> (pass.log); full suite sạch với PostgreSQL `app04_test` <b>25/25 pass, 0 skip</b> (full-suite.log).")]
 story += [p("<b>Contract HTTP:</b> POST JSON workUnits 1–5, failAt tùy chọn, Idempotency-Key 8–64 ký tự; GET /api/demo-tasks/:id. Retry cùng payload trả 202 cùng ID; payload khác 409. Demo page ở /demo-tasks. State được gán vào map trước khi chạy microtask.", "small")]
-story += [PageBreak()]
 
-# Main page 4 — mutation, coverage, flakes, load.
+# Mutation, coverage, flakes, and load.
 story += section("5. Who tests the tests?")
 story += [p("<b>Mutation bắt buộc:</b> nhánh tạm local `experiment/vt114-boundary-mutation`, commit <b>23e0080</b>, đổi điều kiện `workUnits &gt; 5` thành `workUnits &gt;= 5` trong tasks/routes.ts. T06 gửi 5 bước: mutant trả <b>400</b> thay vì <b>202</b> và fail (mutation.log). Nhánh nộp giữ `&gt;`; T06 pass lại. Không đưa mutation vào PR #19.")]
 story += [p("<b>Coverage của slice (Node built-in):</b> tasks/routes.js 98,67% line / 85,71% branch; tasks/store.js 100% line / 92,59% branch. Nhánh capacity 10.000 task và vài input sai chưa được chạy. Risk coverage: AC1 T01+load; AC2 T02/T09/T10+Chrome; AC3 T03/T03b+pairwise; AC4 T04–T08c+pairwise. Coverage toàn repo 75% line/78,57% branch trong run slice gồm nhiều module không liên quan, nên không dùng nó làm kết luận chất lượng.")]
@@ -146,9 +143,8 @@ story += [table(["Phép đo", "Kết quả", "Mục tiêu", "Kết luận"], [
     ["Chrome headless", "succeeded — 100%", "hiện tiến trình", "đạt happy path"],
 ], [157, 120, 95, 129])]
 story += [Spacer(1, 6), p("Harness chạy Node 24.22.0, HTTP loopback, một process, 200 key khác nhau; không có PostgreSQL write, browser đồng thời, email thật hoặc mạng ngoài. Kết quả không chứng minh throughput production hay chống trùng qua restart. Retry cùng key được kiểm riêng ở T03/T11.")]
-story += [PageBreak()]
 
-# Main page 5 — traceability and review.
+# Traceability and review.
 story += section("7. Traceability và engineering evidence")
 trace = [
     ["AC1 / ack", "T01, T12", "test/async-tasks.test.ts; scripts/load-tasks.mjs", "3f4eb50 → eddf66f; PR #19", "red 404; pass; p95 350,74 ms"],
@@ -162,15 +158,14 @@ story += [Spacer(1, 9)]
 story += [p("<b>Bằng chứng:</b> docs/bt3-vt114/{plan.md,spec.md,README.md,red.log,pass.log,mutation.log,coverage.log,full-suite.log,headers.log,load.json,browser.json,review.md,ai-usage.md}. Nhánh nộp `feat/bt3-vt114-async-tasks`; <link href='https://github.com/SE2026-T28/SE2026-T28/pull/19'>Draft PR #19</link> chưa merge.")]
 story += [p("<b>Hai đề xuất AI có vẻ hợp lý nhưng không đủ tin:</b> (1) `Map` ngăn retry trùng trong process, không bảo đảm sau restart hoặc nhiều instance; (2) callback tối đa một lần không bảo đảm exactly-once đối với dịch vụ ngoài có thể thực hiện xong rồi báo lỗi. Cần unique key bền vững, outbox và downstream idempotency trước khi dùng cho giao dịch/thông báo thật.")]
 story += [p("<b>Review kết quả:</b> invariant được bảo vệ trong phạm vi process; không sửa Registration/OIDC. Tồn tại: endpoint demo chưa xác thực người dùng/tenant, state mất khi restart, cap 10.000 record làm 503 thay vì evict và tái chạy. PR giữ Draft để nhóm review; test tiếp theo nên kiểm worker crash giữa DB write và thông báo.")]
-story += [PageBreak()]
 
-# Main page 6 — reflection.
+# Reflection.
 story += section("8. Reflection (337 từ)")
 reflection = DOCS.joinpath("reflection.md").read_text(encoding="utf8").split("\n", 2)[-1].strip().split("\n\n")
 for paragraph in reflection:
     story += [p(escape(paragraph))]
 story += [Spacer(1, 18), HRFlowable(width="100%", thickness=0.5, color=colors.HexColor("#B6C7CB")), Spacer(1, 9)]
-story += [p("<b>Cam kết:</b> Tôi chịu trách nhiệm về toàn bộ nội dung bài làm; đã khai báo cách sử dụng AI, kiểm chứng test, mutation và giới hạn của kết quả đo.", "small")]
+story += [p("Bằng chứng chi tiết và giới hạn của kết quả đo được ghi ở phụ lục và README trên branch.", "small")]
 story += [PageBreak()]
 
 # Appendix A — AI usage (excluded from main-page limit).
@@ -183,7 +178,6 @@ story += bullets([
     "<b>Prompt verify:</b> đổi &gt;→&gt;= tạm rồi chạy T06; revert trên nhánh nộp. Commit mutant 23e0080, T06 fail 400/202, bản nộp pass.",
 ])
 story += [p("Output dùng: cấu trúc TaskStore/route, ma trận pairwise, test harness. Output sửa/bác bỏ: Redis/Registration, React dashboard, hai test yếu, claim exactly-once. Bằng chứng chi tiết ở ai-usage.md, plan.md và review.md.")]
-story += [PageBreak()]
 
 # Appendix B — excerpts, not whole logs.
 story += [p("PHỤ LỤC B · Trích log thực thi", "title")]
@@ -195,6 +189,15 @@ story += [p("<b>Load 200:</b> p95 ack 350,74 ms; p95 completion 556,42 ms; targe
 story += [p("<b>Browser:</b> Chrome headless `/demo-tasks`, final `succeeded — 100%` — `browser.json`.")]
 story += [p("<b>Nhiễu build:</b> 3 test M2 cũ trong `dist` sau đổi nhánh; dọn `dist` và chạy lại full suite 25/25 — `stale-dist.log` và `full-suite.log`.")]
 story += [Spacer(1, 12), p("Nguồn đầy đủ: <link href='https://github.com/SE2026-T28/SE2026-T28/tree/feat/bt3-vt114-async-tasks/docs/bt3-vt114'>docs/bt3-vt114 trên GitHub branch</link>.", "small")]
+story += section("PHỤ LỤC C · Đối chiếu yêu cầu")
+story += [table(["Nhóm yêu cầu", "Trạng thái", "Bằng chứng kiểm tra"], [
+    ["Spec và AI plan", "Đủ", "4 AC, 2 ràng buộc, invariant; plan trước code; 2 đề xuất AI bác bỏ bằng repo."],
+    ["Test strategy", "Đủ", "12 test case, 9 tổ hợp pairwise, negative/failure, unit/API/E2E và test không cần thiết."],
+    ["Test-first slice", "Đủ", "Branch riêng, baseline, commit red 404, patch, 12/12 pass, README, Draft PR #19."],
+    ["Mutation và chất lượng", "Đủ", "Mutant &gt;→&gt;= bị T06 bắt; line/branch, risk coverage, 2 nguồn flaky, tải 200."],
+    ["Evidence và reflection", "Đủ", "Traceability, AI Usage Log, 2 nhận định AI bị giới hạn, reflection 337 từ."],
+], [122, 66, 313], tiny=True)]
+story += [Spacer(1, 7), p("<b>Giới hạn phải giữ khi nộp:</b> 200 task là giả lập trên loopback; store không bền vững, không có giao dịch hay thông báo thật. Slice chỉ chứng minh contract trong một process; không khẳng định đã triển khai hệ thống tác vụ production.", "small")]
 
 
 def decorate(canvas, doc):
@@ -205,7 +208,7 @@ def decorate(canvas, doc):
     canvas.setFont("DejaVu", 7)
     canvas.setFillColor(GRAY)
     page = doc.page
-    label = f"BT3 · VT-114 · Nội dung {page}/6" if page <= 6 else f"BT3 · VT-114 · Phụ lục {page - 6}"
+    label = f"BT3 · VT-114 · Trang {page}"
     canvas.drawString(16 * mm, 11 * mm, label)
     canvas.drawRightString(width - 16 * mm, 11 * mm, "Đặng Minh Quang · 24002070")
     canvas.restoreState()
