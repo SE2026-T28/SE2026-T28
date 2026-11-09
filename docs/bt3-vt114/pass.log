@@ -1,0 +1,22 @@
+oidc-provider WARNING: a quick start development-only in-memory adapter is used, you MUST change it in order to not lose all stateful provider data upon restart and to be able to share these between processes
+oidc-provider WARNING: quick start development-only signing keys are used, you are expected to provide your own in the configuration "jwks" property
+✔ T01/T02 valid POST acknowledges and status reaches 100% (141.362433ms)
+✔ T03 concurrent retries share one task ID (212.527805ms)
+✔ T03b one completion effect survives 20 same-key submissions (9.225655ms)
+✔ T08b failed work never invokes the completion effect (3.846266ms)
+✔ T08c completion callback failure is terminal and retry does not invoke it twice (3.707294ms)
+✔ T04 conflicting payload with same key returns 409 (1.820619ms)
+✔ T05/T07 invalid key and work units are rejected (2.949423ms)
+✔ T06 boundary workUnits=5 is accepted (mutation sentinel) (209.614267ms)
+✔ T08 failed task remains failed on same-key retry (89.323273ms)
+✔ T09 unknown task returns 404 (3.480984ms)
+✔ T10 demo page contains same-origin progress client (1.147987ms)
+✔ T11 pairwise combinations cover work units, outcome and retry timing (995.530484ms)
+ℹ tests 12
+ℹ suites 0
+ℹ pass 12
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1873.601882
