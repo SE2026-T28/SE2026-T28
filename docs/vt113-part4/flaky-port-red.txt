@@ -1,0 +1,33 @@
+oidc-provider WARNING: a quick start development-only in-memory adapter is used, you MUST change it in order to not lose all stateful provider data upon restart and to be able to share these between processes
+oidc-provider WARNING: quick start development-only signing keys are used, you are expected to provide your own in the configuration "jwks" property
+✖ real PKCE issuance and old-grant eligibility (19.7892ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1130.5815
+
+✖ failing tests:
+
+test at dist\test\user-search-issuance.test.js:7:1
+✖ real PKCE issuance and old-grant eligibility (19.7892ms)
+  Error: listen EADDRINUSE: address already in use :::15539
+      at Server.setupListenHandle [as _listen2] (node:net:2390:16)
+      at listenInCluster (node:net:2499:12)
+      at Server.listen (node:net:2624:7)
+      at app.listen (C:\Users\mp\Documents\ChatGPT\SE2026-T28\identity-server\node_modules\express\lib\application.js:605:24)
+      at TestContext.<anonymous> (file:///C:/Users/mp/Documents/ChatGPT/SE2026-T28/identity-server/dist/test/user-search-issuance.test.js:15:38)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.start (node:internal/test_runner/test:1262:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17) {
+    code: 'EADDRINUSE',
+    errno: -4091,
+    syscall: 'listen',
+    address: '::',
+    port: 15539
+  }
+PORT_CONFLICT_EXIT=1

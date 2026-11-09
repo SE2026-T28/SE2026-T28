@@ -6,6 +6,7 @@ export interface AppConfig {
   postLogoutRedirectUri: string;
   scopes: string[];
   corsOrigin: string;
+  searchAccountIds?: string[];
 }
 
 function required(env: NodeJS.ProcessEnv, name: string): string {
@@ -59,5 +60,6 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     postLogoutRedirectUri: postLogout.href,
     scopes,
     corsOrigin: cors.origin,
+    searchAccountIds: (env.VT113_SEARCH_ACCOUNT_IDS ?? '').split(',').map(id => id.trim()).filter(Boolean),
   };
 }

@@ -1,0 +1,29 @@
+    current_database    | current_user | inet_server_addr | inet_server_port
+------------------------+--------------+------------------+------------------
+ vt113_user_search_test | vt113_test   | 127.0.0.1        |            55432
+(1 row)
+
+ all_remaining_users | remaining_performance_fixtures
+---------------------+--------------------------------
+                   0 |                              0
+(1 row)
+
+ listen_addresses
+------------------
+ 127.0.0.1
+(1 row)
+
+ max_connections
+-----------------
+ 100
+(1 row)
+
+ shared_buffers
+----------------
+ 128MB
+(1 row)
+
+ work_mem
+----------
+ 4MB
+(1 row)

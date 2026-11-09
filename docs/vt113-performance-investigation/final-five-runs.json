@@ -1,0 +1,88 @@
+{
+  "machine": {
+    "os": "win32 10.0.19045",
+    "cpu": "Intel(R) Core(TM) i7-7820HQ CPU @ 2.90GHz",
+    "logicalCpus": 8,
+    "memoryGiB": 15.89962387084961,
+    "node": "v24.22.0"
+  },
+  "dataset": {
+    "rows": 10000,
+    "timestampTies": 5,
+    "email": "unique, mixed case, prefix searchable",
+    "indexes": "existing primary ID and unique email only"
+  },
+  "protocol": {
+    "concurrency": 80,
+    "model": "80 closed-loop async workers, one outstanding request each; local HTTP server+DB+load generator",
+    "queryMix": "25% unfiltered first page,25% unfiltered page100 limit50,25% selective case-insensitive substring,25% no match",
+    "warmupRequests": 400,
+    "measuredRuns": 5,
+    "requestsPerRun": 2000,
+    "latency": "performance.now through complete JSON read; includes failures",
+    "tokens": "80 real provider-model opaque tokens, not hardcoded; full OAuth flow independently tested"
+  },
+  "warmup": {
+    "requests": 400,
+    "seconds": 6.0381013999999995,
+    "p50_ms": 1018.6018000000004,
+    "p95_ms": 1832.9503000000004,
+    "p99_ms": 2132.1474,
+    "throughput_rps": 66.24598917798896,
+    "errors": 0,
+    "errorRate": 0
+  },
+  "runs": [
+    {
+      "requests": 2000,
+      "seconds": 28.0210402,
+      "p50_ms": 1136.9959999999992,
+      "p95_ms": 2245.900599999997,
+      "p99_ms": 2514.3848,
+      "throughput_rps": 71.37493775124022,
+      "errors": 0,
+      "errorRate": 0
+    },
+    {
+      "requests": 2000,
+      "seconds": 29.481761099999996,
+      "p50_ms": 1333.0910000000003,
+      "p95_ms": 2142.291799999999,
+      "p99_ms": 2475.504000000001,
+      "throughput_rps": 67.83855256190921,
+      "errors": 0,
+      "errorRate": 0
+    },
+    {
+      "requests": 2000,
+      "seconds": 28.138501000000005,
+      "p50_ms": 1109.1390000000101,
+      "p95_ms": 2164.694000000003,
+      "p99_ms": 2552.9830999999976,
+      "throughput_rps": 71.07699162794776,
+      "errors": 0,
+      "errorRate": 0
+    },
+    {
+      "requests": 2000,
+      "seconds": 27.751872400000007,
+      "p50_ms": 1127.4601000000112,
+      "p95_ms": 2273.527000000002,
+      "p99_ms": 2476.6238999999914,
+      "throughput_rps": 72.06720941827332,
+      "errors": 0,
+      "errorRate": 0
+    },
+    {
+      "requests": 2000,
+      "seconds": 26.129364800000012,
+      "p50_ms": 1052.472700000013,
+      "p95_ms": 1972.0950000000012,
+      "p99_ms": 2075.7052999999723,
+      "throughput_rps": 76.54223573012379,
+      "errors": 0,
+      "errorRate": 0
+    }
+  ],
+  "pass": true
+}

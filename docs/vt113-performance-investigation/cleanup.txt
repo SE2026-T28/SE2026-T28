@@ -1,0 +1,9 @@
+    current_database    | current_user | inet_server_addr | inet_server_port
+------------------------+--------------+------------------+------------------
+ vt113_user_search_test | vt113_test   | 127.0.0.1        |            55432
+(1 row)
+
+ remaining_users
+-----------------
+               0
+(1 row)

@@ -1,0 +1,7 @@
+
+> app04-identity-server@0.1.0 prebuild
+> node scripts/check-node.cjs
+
+
+> app04-identity-server@0.1.0 build
+> tsc -p tsconfig.json

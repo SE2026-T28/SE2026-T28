@@ -1,0 +1,8 @@
+oidc-provider WARNING: a quick start development-only in-memory adapter is used, you MUST change it in order to not lose all stateful provider data upon restart and to be able to share these between processes
+oidc-provider WARNING: quick start development-only signing keys are used, you are expected to provide your own in the configuration "jwks" property
+{"run":1,"requests":2000,"seconds":28.0210402,"p50_ms":1136.9959999999992,"p95_ms":2245.900599999997,"p99_ms":2514.3848,"throughput_rps":71.37493775124022,"errors":0,"errorRate":0}
+{"run":2,"requests":2000,"seconds":29.481761099999996,"p50_ms":1333.0910000000003,"p95_ms":2142.291799999999,"p99_ms":2475.504000000001,"throughput_rps":67.83855256190921,"errors":0,"errorRate":0}
+{"run":3,"requests":2000,"seconds":28.138501000000005,"p50_ms":1109.1390000000101,"p95_ms":2164.694000000003,"p99_ms":2552.9830999999976,"throughput_rps":71.07699162794776,"errors":0,"errorRate":0}
+{"run":4,"requests":2000,"seconds":27.751872400000007,"p50_ms":1127.4601000000112,"p95_ms":2273.527000000002,"p99_ms":2476.6238999999914,"throughput_rps":72.06720941827332,"errors":0,"errorRate":0}
+{"run":5,"requests":2000,"seconds":26.129364800000012,"p50_ms":1052.472700000013,"p95_ms":1972.0950000000012,"p99_ms":2075.7052999999723,"throughput_rps":76.54223573012379,"errors":0,"errorRate":0}
+PERFORMANCE_PASS=true

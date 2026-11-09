@@ -1,0 +1,78 @@
+oidc-provider WARNING: a quick start development-only in-memory adapter is used, you MUST change it in order to not lose all stateful provider data upon restart and to be able to share these between processes
+oidc-provider WARNING: quick start development-only signing keys are used, you are expected to provide your own in the configuration "jwks" property
+✔ Discovery publishes the agreed issuer and public-client endpoints (225.9947ms)
+✔ Local configuration rejects a mismatched client origin (1.3451ms)
+✔ Production configuration is rejected while storage and keys are development-only (0.5257ms)
+oidc-provider WARNING: a quick start development-only in-memory adapter is used, you MUST change it in order to not lose all stateful provider data upon restart and to be able to share these between processes
+oidc-provider WARNING: quick start development-only signing keys are used, you are expected to provide your own in the configuration "jwks" property
+✔ đăng ký thành công, lưu Argon2id và không trả password hash (740.1546ms)
+✔ từ chối email trùng, không phân biệt chữ hoa/thường (284.0953ms)
+✔ từ chối email sai định dạng (6.8951ms)
+✔ từ chối mật khẩu ngắn hơn 8 ký tự (8.4354ms)
+✔ hai request đồng thời cùng email chỉ tạo một người dùng (279.5887ms)
+✔ Registration CORS chỉ cho phép origin của React demo (7.183ms)
+✔ Security headers for configured issuer http://localhost:3000 (97.4691ms)
+oidc-provider WARNING: a quick start development-only in-memory adapter is used, you MUST change it in order to not lose all stateful provider data upon restart and to be able to share these between processes
+oidc-provider WARNING: quick start development-only signing keys are used, you are expected to provide your own in the configuration "jwks" property
+✔ Security headers for configured issuer https://identity.example.test (20.5125ms)
+✔ HTTP headers configuration rejects non-local issuers (1.3131ms)
+✔ Integrated registration and health routes keep S4 headers and A1 CORS (84.6494ms)
+oidc-provider WARNING: a quick start development-only in-memory adapter is used, you MUST change it in order to not lose all stateful provider data upon restart and to be able to share these between processes
+oidc-provider WARNING: quick start development-only signing keys are used, you are expected to provide your own in the configuration "jwks" property
+oidc-provider NOTICE: default ttl.AccessToken function called, you SHOULD change it in order to define the expiration for AccessToken artifacts.
+oidc-provider NOTICE: default ttl.IdToken function called, you SHOULD change it in order to define the expiration for IdToken artifacts.
+✔ search HTTP uses real provider tokens and fails closed (325.9046ms)
+oidc-provider WARNING: a quick start development-only in-memory adapter is used, you MUST change it in order to not lose all stateful provider data upon restart and to be able to share these between processes
+oidc-provider WARNING: quick start development-only signing keys are used, you are expected to provide your own in the configuration "jwks" property
+oidc-provider NOTICE: default ttl.Interaction function called, you SHOULD change it in order to define the expiration for Interaction artifacts.
+oidc-provider NOTICE: default ttl.Session function called, you SHOULD change it in order to define the expiration for Session artifacts.
+oidc-provider NOTICE: default ttl.Grant function called, you SHOULD change it in order to define the expiration for Grant artifacts.
+oidc-provider NOTICE: default ttl.AccessToken function called, you SHOULD change it in order to define the expiration for AccessToken artifacts.
+oidc-provider NOTICE: default ttl.IdToken function called, you SHOULD change it in order to define the expiration for IdToken artifacts.
+oidc-provider NOTICE: default renderError function called, you SHOULD change it in order to customize the look of the error page.
+✔ real PKCE issuance and old-grant eligibility (1335.3388ms)
+✔ PostgreSQL literal filter, stable ordering, pagination and projection (702.3617ms)
+✔ defaults, trimming and literal email (5.2169ms)
+✔ reject page=0 (1.0701ms)
+✔ reject page=-1 (0.3404ms)
+✔ reject page=1.5 (0.2884ms)
+✔ reject page=abc (0.2934ms)
+✔ reject page=1e2 (0.3332ms)
+✔ reject page= (0.3141ms)
+✔ reject page=01 (0.3211ms)
+✔ reject page=+1 (1.2014ms)
+✔ reject page= 1 (0.5688ms)
+✔ reject page=2147483649 (0.2852ms)
+✔ reject limit=0 (0.2648ms)
+✔ reject limit=-1 (0.2167ms)
+✔ reject limit=1.5 (0.1836ms)
+✔ reject limit=abc (0.226ms)
+✔ reject limit=1e2 (0.2257ms)
+✔ reject limit= (0.165ms)
+✔ reject limit=51 (0.1575ms)
+✔ reject limit=01 (0.1867ms)
+✔ reject duplicate email (0.3121ms)
+✔ reject duplicate page (0.1804ms)
+✔ reject duplicate limit (0.6754ms)
+✔ unknown key rejected (0.3539ms)
+✔ valid limit 1 (0.467ms)
+✔ valid limit 2 (0.2315ms)
+✔ valid limit 49 (0.2464ms)
+✔ valid limit 50 (0.1617ms)
+✔ valid page 1 (0.1852ms)
+✔ valid page 2 (0.1836ms)
+✔ offset boundary and unsafe integers (0.614ms)
+✔ service query contract, pagination and projection (1.4793ms)
+✔ empty and beyond-last pages (0.6956ms)
+✔ database failures propagate for future HTTP boundary (1.5852ms)
+✔ no filter, backslash literal and direct service validation (0.9564ms)
+✔ concurrent identical counts are coalesced only while in flight (3.7482ms)
+✔ count coalescing isolates repositories, filters and rejected promises (2.516ms)
+ℹ tests 52
+ℹ suites 0
+ℹ pass 52
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3195.8821

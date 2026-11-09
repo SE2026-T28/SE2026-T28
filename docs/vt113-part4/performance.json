@@ -1,0 +1,68 @@
+{
+  "machine": {
+    "os": "win32 10.0.19045",
+    "cpu": "Intel(R) Core(TM) i7-7820HQ CPU @ 2.90GHz",
+    "logicalCpus": 8,
+    "memoryGiB": 15.89962387084961,
+    "node": "v24.22.0"
+  },
+  "dataset": {
+    "rows": 10000,
+    "timestampTies": 5,
+    "email": "unique, mixed case, prefix searchable",
+    "indexes": "existing primary ID and unique email only"
+  },
+  "protocol": {
+    "concurrency": 80,
+    "model": "80 closed-loop async workers, one outstanding request each; local HTTP server+DB+load generator",
+    "queryMix": "25% unfiltered first page,25% unfiltered page100 limit50,25% selective case-insensitive substring,25% no match",
+    "warmupRequests": 400,
+    "measuredRuns": 3,
+    "requestsPerRun": 2000,
+    "latency": "performance.now through complete JSON read; includes failures",
+    "tokens": "80 real provider-model opaque tokens, not hardcoded; full OAuth flow independently tested"
+  },
+  "warmup": {
+    "requests": 400,
+    "seconds": 9.413948900000001,
+    "p50_ms": 1721.1037000000015,
+    "p95_ms": 2233.4011999999993,
+    "p99_ms": 2328.1706999999997,
+    "throughput_rps": 42.490139286819364,
+    "errors": 0,
+    "errorRate": 0
+  },
+  "runs": [
+    {
+      "requests": 2000,
+      "seconds": 47.3060954,
+      "p50_ms": 1878.9700999999986,
+      "p95_ms": 2327.653199999997,
+      "p99_ms": 2449.322899999999,
+      "throughput_rps": 42.277849885704164,
+      "errors": 0,
+      "errorRate": 0
+    },
+    {
+      "requests": 2000,
+      "seconds": 49.7041089,
+      "p50_ms": 1961.9394999999931,
+      "p95_ms": 2524.333999999988,
+      "p99_ms": 2706.0203000000038,
+      "throughput_rps": 40.2381220438699,
+      "errors": 0,
+      "errorRate": 0
+    },
+    {
+      "requests": 2000,
+      "seconds": 52.96118780000001,
+      "p50_ms": 2068.3764000000083,
+      "p95_ms": 2771.040599999993,
+      "p99_ms": 3146.5136000000057,
+      "throughput_rps": 37.76350348396075,
+      "errors": 0,
+      "errorRate": 0
+    }
+  ],
+  "pass": false
+}

@@ -1,0 +1,255 @@
+{
+  "branch": "feat/vt113-user-search-test-first",
+  "baseline": "4c8e96e4c8eadb934be30a8efc220fa93919b60a",
+  "auditOnly": "No tests, builds, benchmark or database connections executed in Part5",
+  "reflectionEnglishWhitespaceWords": 303,
+  "reports": {
+    "docs/vt113-performance-investigation/profile-baseline.json": {
+      "actualRuns": 1,
+      "declaredRuns": 3,
+      "requests": [
+        2000
+      ],
+      "p95_ms": [
+        2589.3439
+      ],
+      "errors": [
+        0
+      ],
+      "recordedPass": false,
+      "recomputedPass": false
+    },
+    "docs/vt113-performance-investigation/final-five-runs.json": {
+      "actualRuns": 5,
+      "declaredRuns": 5,
+      "requests": [
+        2000,
+        2000,
+        2000,
+        2000,
+        2000
+      ],
+      "p95_ms": [
+        2245.900599999997,
+        2142.291799999999,
+        2164.694000000003,
+        2273.527000000002,
+        1972.0950000000012
+      ],
+      "errors": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "recordedPass": true,
+      "recomputedPass": true
+    },
+    "docs/vt113-performance-investigation/optimized-benchmark.json": {
+      "actualRuns": 3,
+      "declaredRuns": 3,
+      "requests": [
+        2000,
+        2000,
+        2000
+      ],
+      "p95_ms": [
+        2426.035,
+        2499.811099999999,
+        1988.7042999999976
+      ],
+      "errors": [
+        0,
+        0,
+        0
+      ],
+      "recordedPass": true,
+      "recomputedPass": true
+    },
+    "docs/vt113-part4/performance.json": {
+      "actualRuns": 3,
+      "declaredRuns": 3,
+      "requests": [
+        2000,
+        2000,
+        2000
+      ],
+      "p95_ms": [
+        2327.653199999997,
+        2524.333999999988,
+        2771.040599999993
+      ],
+      "errors": [
+        0,
+        0,
+        0
+      ],
+      "recordedPass": false,
+      "recomputedPass": false
+    }
+  },
+  "finalLogRuns": 5,
+  "finalJsonLogMismatches": [],
+  "routeHash": "911DE9CE586D8CAD22A3F381FD5B352C8A37173FA360F3A21F4C6922D0DE15B9",
+  "restoredRouteHashMatches": true,
+  "sensitivePatternFindings": [],
+  "scanLimit": "Heuristic changed/untracked text scan only; no complete security guarantee",
+  "historicalCaveats": [
+    "issuance fixed-port note is stale",
+    "profile declares3 but contains1 measured run",
+    "coverage50 predates optimized suite52",
+    "initial driver profile context incomplete",
+    "original RED milestones partly chat-only"
+  ],
+  "requiredEvidenceFiles": [
+    {
+      "path": "docs/vt113-issuance-evidence.md",
+      "bytes": 2664,
+      "sha256": "BE5C2D110B991F7D17F09C04AFAFEF0BF48055F478E6A25385DAA22F8A2AAA3E"
+    },
+    {
+      "path": "docs/vt113-part4/notes.md",
+      "bytes": 5188,
+      "sha256": "CD2AD86B3DD51B361A4681F19D5C56962AE19D1A0B6261DFAC2B129FA70C7361"
+    },
+    {
+      "path": "docs/vt113-part4/performance.json",
+      "bytes": 1976,
+      "sha256": "9353454F5EC8881537508DED6F7FB9FDD6CF4B1D385097B0C796BD3A3DD67FCB"
+    },
+    {
+      "path": "docs/vt113-performance-investigation/notes.md",
+      "bytes": 4888,
+      "sha256": "600CD643E34F2617FFF3CEFC45CE43578D0179A0575C8F4B527A1AB6ED8705BF"
+    },
+    {
+      "path": "docs/vt113-performance-investigation/profile-baseline.json",
+      "bytes": 13669,
+      "sha256": "363EB740BC892D18B54C925D8F29F9369A015325A200E8E5A5BDAF33397A9053"
+    },
+    {
+      "path": "docs/vt113-performance-investigation/optimized-benchmark.json",
+      "bytes": 1959,
+      "sha256": "135C5389E36E9D272E121EB49E68EAFBDEDDD4CC91F3F318BD1E93853072C522"
+    },
+    {
+      "path": "docs/vt113-performance-investigation/final-five-runs.json",
+      "bytes": 2494,
+      "sha256": "DD0B1051BC1DF19F84F113E1F32508518EE99B7D8F1E7222AB0FCBD8CFFE4BF9"
+    },
+    {
+      "path": "docs/vt113-performance-investigation/final-five-runs-log.txt",
+      "bytes": 1360,
+      "sha256": "BC5666C3EE8FD05D4495F484689AEC0289689BB9C19449B76E30540933433992"
+    },
+    {
+      "path": "docs/vt113-performance-investigation/final-five-runs-cleanup.txt",
+      "bytes": 631,
+      "sha256": "590E27E4E5F1A59CD087C7F954C03E6212D73E8485199AC9EFC47EE3D43F0C5C",
+      "historicalSha256": "6DF59AE79DD2926FA62F90D3D8025FCD45AE755EB4D686CA2FBB311ABC2E1FA3",
+      "historicalBytes": 639
+    }
+  ],
+  "rawEvidenceWhitespaceNormalization": {
+  "scope": "Exactly eight raw logs; trailing spaces/tabs and excess EOF blank lines removed; one final CRLF retained",
+  "totalWhitespaceBytesRemoved": 82,
+  "nonWhitespaceContentAndLineOrderPreserved": true,
+  "encodingPreserved": true,
+  "lineEndings": "CRLF",
+  "testsRerun": false,
+  "benchmarksRerun": false,
+  "historicalHashes": "SHA-256 of original pre-normalization byte streams; originals and hash record verified against local backup",
+  "hashBasis": "Current working-tree bytes with CRLF, not Git LF-normalized blob hashes",
+  "files": [
+    {
+      "path": "docs/vt113-part4/baseline-build.txt",
+      "sha256": "06B404E30A833BF0D194E3E76721277626947A2C84C17D69151DCEE11407B346",
+      "historicalSha256": "93EFA5672B8148718419F098E6FE9C4C435CF28E98846D6ABDF0BC27B9B16AFE",
+      "bytes": 138,
+      "historicalBytes": 140,
+      "bytesRemoved": 2,
+      "encodingPreserved": true,
+      "lineEndings": "CRLF",
+      "nonWhitespaceContentAndLineOrderPreserved": true
+    },
+    {
+      "path": "docs/vt113-part4/coverage.txt",
+      "sha256": "423E70A60B81A722EB8847474EA076388B3491F4385177D848F57C303565C123",
+      "historicalSha256": "CBAE907D5825AA9E09197AB100CAE942536834F8C7EED489610BB371F7CED1E8",
+      "bytes": 7393,
+      "historicalBytes": 7404,
+      "bytesRemoved": 11,
+      "encodingPreserved": true,
+      "lineEndings": "CRLF",
+      "nonWhitespaceContentAndLineOrderPreserved": true
+    },
+    {
+      "path": "docs/vt113-part4/final-coverage-suite.txt",
+      "sha256": "91D425F3D37796F4354A73FFBE3B70C3C3CF3B8B74ACADC3953280DBF69033D5",
+      "historicalSha256": "B69CDF542F135939B4791CBA0FA001130834CA69F3729509FA460CA719303381",
+      "bytes": 7388,
+      "historicalBytes": 7399,
+      "bytesRemoved": 11,
+      "encodingPreserved": true,
+      "lineEndings": "CRLF",
+      "nonWhitespaceContentAndLineOrderPreserved": true
+    },
+    {
+      "path": "docs/vt113-part4/final-db.txt",
+      "sha256": "54F690AE8B045F93BC3C8F2328E03B9ADB14F3ADB4D931790E5419FE0B053774",
+      "historicalSha256": "17036A56F2829D810EDA801CF937AC4E31234CE09A68875A39E0FB789D5167F1",
+      "bytes": 713,
+      "historicalBytes": 751,
+      "bytesRemoved": 38,
+      "encodingPreserved": true,
+      "lineEndings": "CRLF",
+      "nonWhitespaceContentAndLineOrderPreserved": true
+    },
+    {
+      "path": "docs/vt113-part4/mutation-red.txt",
+      "sha256": "0027A2232B17E8A2BEAC4FB4F51FF658C4FD0A87FC1D36E081E64D9485ED7DC9",
+      "historicalSha256": "3F19837DFE02FD05973CD1ED9EE873B57792E90682D586AB59EC0479E5FE228A",
+      "bytes": 1475,
+      "historicalBytes": 1479,
+      "bytesRemoved": 4,
+      "encodingPreserved": true,
+      "lineEndings": "CRLF",
+      "nonWhitespaceContentAndLineOrderPreserved": true
+    },
+    {
+      "path": "docs/vt113-performance-investigation/cleanup.txt",
+      "sha256": "14D6ABC75FB85A0E866007D331FB867318ADE7C42C611A90577CC852FBA5B7A6",
+      "historicalSha256": "7DF17019D618541DCCF2DBEBC2C39A05DB34F22018A393142180F9CB2D41E393",
+      "bytes": 310,
+      "historicalBytes": 314,
+      "bytesRemoved": 4,
+      "encodingPreserved": true,
+      "lineEndings": "CRLF",
+      "nonWhitespaceContentAndLineOrderPreserved": true
+    },
+    {
+      "path": "docs/vt113-performance-investigation/coalescing-red.txt",
+      "sha256": "AC41BBA4EAC97E666AE5A144138F0F150E043A309A20FBD744355A57A27F933A",
+      "historicalSha256": "DF0B84D347C71A7BA3A101B7C0FC2CD190CD37AF9E6EF41520DB1372177E3983",
+      "bytes": 2238,
+      "historicalBytes": 2242,
+      "bytesRemoved": 4,
+      "encodingPreserved": true,
+      "lineEndings": "CRLF",
+      "nonWhitespaceContentAndLineOrderPreserved": true
+    },
+    {
+      "path": "docs/vt113-performance-investigation/final-five-runs-cleanup.txt",
+      "sha256": "590E27E4E5F1A59CD087C7F954C03E6212D73E8485199AC9EFC47EE3D43F0C5C",
+      "historicalSha256": "6DF59AE79DD2926FA62F90D3D8025FCD45AE755EB4D686CA2FBB311ABC2E1FA3",
+      "bytes": 631,
+      "historicalBytes": 639,
+      "bytesRemoved": 8,
+      "encodingPreserved": true,
+      "lineEndings": "CRLF",
+      "nonWhitespaceContentAndLineOrderPreserved": true
+    }
+  ]
+}
+}

@@ -1,0 +1,102 @@
+oidc-provider WARNING: a quick start development-only in-memory adapter is used, you MUST change it in order to not lose all stateful provider data upon restart and to be able to share these between processes
+oidc-provider WARNING: quick start development-only signing keys are used, you are expected to provide your own in the configuration "jwks" property
+✔ Discovery publishes the agreed issuer and public-client endpoints (235.0603ms)
+✔ Local configuration rejects a mismatched client origin (1.2669ms)
+✔ Production configuration is rejected while storage and keys are development-only (0.4274ms)
+oidc-provider WARNING: a quick start development-only in-memory adapter is used, you MUST change it in order to not lose all stateful provider data upon restart and to be able to share these between processes
+oidc-provider WARNING: quick start development-only signing keys are used, you are expected to provide your own in the configuration "jwks" property
+✔ đăng ký thành công, lưu Argon2id và không trả password hash (680.2467ms)
+✔ từ chối email trùng, không phân biệt chữ hoa/thường (187.0848ms)
+✔ từ chối email sai định dạng (4.3737ms)
+✔ từ chối mật khẩu ngắn hơn 8 ký tự (6.3852ms)
+✔ hai request đồng thời cùng email chỉ tạo một người dùng (222.7215ms)
+✔ Registration CORS chỉ cho phép origin của React demo (6.6564ms)
+✔ Security headers for configured issuer http://localhost:3000 (92.127ms)
+oidc-provider WARNING: a quick start development-only in-memory adapter is used, you MUST change it in order to not lose all stateful provider data upon restart and to be able to share these between processes
+oidc-provider WARNING: quick start development-only signing keys are used, you are expected to provide your own in the configuration "jwks" property
+✔ Security headers for configured issuer https://identity.example.test (15.8561ms)
+✔ HTTP headers configuration rejects non-local issuers (1.214ms)
+✔ Integrated registration and health routes keep S4 headers and A1 CORS (32.55ms)
+oidc-provider WARNING: a quick start development-only in-memory adapter is used, you MUST change it in order to not lose all stateful provider data upon restart and to be able to share these between processes
+oidc-provider WARNING: quick start development-only signing keys are used, you are expected to provide your own in the configuration "jwks" property
+oidc-provider NOTICE: default ttl.AccessToken function called, you SHOULD change it in order to define the expiration for AccessToken artifacts.
+oidc-provider NOTICE: default ttl.IdToken function called, you SHOULD change it in order to define the expiration for IdToken artifacts.
+✔ search HTTP uses real provider tokens and fails closed (268.2507ms)
+oidc-provider WARNING: a quick start development-only in-memory adapter is used, you MUST change it in order to not lose all stateful provider data upon restart and to be able to share these between processes
+oidc-provider WARNING: quick start development-only signing keys are used, you are expected to provide your own in the configuration "jwks" property
+oidc-provider NOTICE: default ttl.Interaction function called, you SHOULD change it in order to define the expiration for Interaction artifacts.
+oidc-provider NOTICE: default ttl.Session function called, you SHOULD change it in order to define the expiration for Session artifacts.
+oidc-provider NOTICE: default ttl.Grant function called, you SHOULD change it in order to define the expiration for Grant artifacts.
+oidc-provider NOTICE: default ttl.AccessToken function called, you SHOULD change it in order to define the expiration for AccessToken artifacts.
+oidc-provider NOTICE: default ttl.IdToken function called, you SHOULD change it in order to define the expiration for IdToken artifacts.
+oidc-provider NOTICE: default renderError function called, you SHOULD change it in order to customize the look of the error page.
+✔ real PKCE issuance and old-grant eligibility (1400.1073ms)
+✔ PostgreSQL literal filter, stable ordering, pagination and projection (656.466ms)
+✔ defaults, trimming and literal email (5.423ms)
+✔ reject page=0 (1.2895ms)
+✔ reject page=-1 (0.3573ms)
+✔ reject page=1.5 (0.212ms)
+✔ reject page=abc (0.2147ms)
+✔ reject page=1e2 (1.8508ms)
+✔ reject page= (0.3053ms)
+✔ reject page=01 (0.2148ms)
+✔ reject page=+1 (0.3216ms)
+✔ reject page= 1 (0.3504ms)
+✔ reject page=2147483649 (0.2434ms)
+✔ reject limit=0 (0.2329ms)
+✔ reject limit=-1 (0.2508ms)
+✔ reject limit=1.5 (0.2635ms)
+✔ reject limit=abc (0.18ms)
+✔ reject limit=1e2 (0.1849ms)
+✔ reject limit= (0.173ms)
+✔ reject limit=51 (0.2119ms)
+✔ reject limit=01 (0.1781ms)
+✔ reject duplicate email (0.7097ms)
+✔ reject duplicate page (0.2079ms)
+✔ reject duplicate limit (0.183ms)
+✔ unknown key rejected (0.3062ms)
+✔ valid limit 1 (0.3391ms)
+✔ valid limit 2 (0.1545ms)
+✔ valid limit 49 (0.2083ms)
+✔ valid limit 50 (0.1435ms)
+✔ valid page 1 (0.2155ms)
+✔ valid page 2 (0.1429ms)
+✔ offset boundary and unsafe integers (0.5557ms)
+✔ service query contract, pagination and projection (1.4424ms)
+✔ empty and beyond-last pages (1.0611ms)
+✔ database failures propagate for future HTTP boundary (1.1979ms)
+✔ no filter, backslash literal and direct service validation (1.4233ms)
+ℹ tests 50
+ℹ suites 0
+ℹ pass 50
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3187.5874
+ℹ start of coverage report
+ℹ ----------------------------------------------------------------------------------------------------------
+ℹ file                 | line % | branch % | funcs % | uncovered lines
+ℹ ----------------------------------------------------------------------------------------------------------
+ℹ dist                 |        |          |         |
+ℹ  src                 |        |          |         |
+ℹ   app.js             |  78.29 |    87.10 |   85.71 | 36 100-126
+ℹ   config.js          |  84.31 |    68.42 |  100.00 | 13-14 16-17 26-27 33-34
+ℹ   db                 |        |          |         |
+ℹ    prisma.js         |  92.31 |    75.00 |  100.00 | 14-15
+ℹ   interactions       |        |          |         |
+ℹ    routes.js         |  81.25 |    51.92 |   80.00 | 20 47-51 54-62 80-84 106-107 111-114 120-121 156-157
+ℹ   security           |        |          |         |
+ℹ    headers.js        | 100.00 |   100.00 |  100.00 |
+ℹ   users              |        |          |         |
+ℹ    authentication.js |  69.33 |    37.50 |   66.67 | 8-9 20-31 48-49 59-60 64-65 68-70
+ℹ    email.js          |  66.67 |    50.00 |  100.00 | 4-5 9-10
+ℹ    login-page.js     |  80.65 |    37.50 |   66.67 | 3-10 20-21 23-24
+ℹ    registration.js   |  96.36 |    92.86 |  100.00 | 14-15
+ℹ    search.js         | 100.00 |   100.00 |  100.00 |
+ℹ    search.routes.js  | 100.00 |   100.00 |   83.33 |
+ℹ    user.routes.js    | 100.00 |    85.71 |  100.00 |
+ℹ ----------------------------------------------------------------------------------------------------------
+ℹ all files            |  84.50 |    76.28 |   86.67 |
+ℹ ----------------------------------------------------------------------------------------------------------
+ℹ end of coverage report

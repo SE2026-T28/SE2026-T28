@@ -1,0 +1,63 @@
+✔ defaults, trimming and literal email (2.6744ms)
+✔ reject page=0 (0.8311ms)
+✔ reject page=-1 (0.2962ms)
+✔ reject page=1.5 (0.1699ms)
+✔ reject page=abc (0.1989ms)
+✔ reject page=1e2 (0.2329ms)
+✔ reject page= (0.2529ms)
+✔ reject page=01 (0.2546ms)
+✔ reject page=+1 (0.3414ms)
+✔ reject page= 1 (1.5168ms)
+✔ reject page=2147483649 (0.1758ms)
+✔ reject limit=0 (0.1329ms)
+✔ reject limit=-1 (0.0971ms)
+✔ reject limit=1.5 (0.0852ms)
+✔ reject limit=abc (0.1702ms)
+✔ reject limit=1e2 (0.1333ms)
+✔ reject limit= (0.0901ms)
+✔ reject limit=51 (0.1291ms)
+✔ reject limit=01 (0.0885ms)
+✔ reject duplicate email (0.2024ms)
+✔ reject duplicate page (0.0907ms)
+✔ reject duplicate limit (0.087ms)
+✔ unknown key rejected (0.1534ms)
+✔ valid limit 1 (0.1723ms)
+✔ valid limit 2 (0.1011ms)
+✔ valid limit 49 (0.0871ms)
+✔ valid limit 50 (0.0831ms)
+✔ valid page 1 (0.1032ms)
+✔ valid page 2 (0.0682ms)
+✔ offset boundary and unsafe integers (0.2957ms)
+✔ service query contract, pagination and projection (0.7203ms)
+✔ empty and beyond-last pages (0.3018ms)
+✔ database failures propagate for future HTTP boundary (0.5158ms)
+✔ no filter, backslash literal and direct service validation (0.4511ms)
+✖ concurrent identical counts are coalesced only while in flight (1.536ms)
+✔ count coalescing isolates repositories, filters and rejected promises (0.4408ms)
+ℹ tests 36
+ℹ suites 0
+ℹ pass 35
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 169.4809
+
+✖ failing tests:
+
+test at dist\test\user-search-unit.test.js:60:1
+✖ concurrent identical counts are coalesced only while in flight (1.536ms)
+  AssertionError [ERR_ASSERTION]: one DB count per overlapping identical filter
+
+  8 !== 1
+
+      at TestContext.<anonymous> (file:///C:/Users/mp/Documents/ChatGPT/SE2026-T28/identity-server/dist/test/user-search-unit.test.js:67:12)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 8,
+    expected: 1,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

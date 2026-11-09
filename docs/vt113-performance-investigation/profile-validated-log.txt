@@ -1,0 +1,4 @@
+oidc-provider WARNING: a quick start development-only in-memory adapter is used, you MUST change it in order to not lose all stateful provider data upon restart and to be able to share these between processes
+oidc-provider WARNING: quick start development-only signing keys are used, you are expected to provide your own in the configuration "jwks" property
+{"run":1,"requests":2000,"seconds":51.7265922,"p50_ms":2034.311600000001,"p95_ms":2589.3439,"p99_ms":2754.7774000000063,"throughput_rps":38.664832051317696,"errors":0,"errorRate":0}
+PERFORMANCE_PASS=false

@@ -1,0 +1,15 @@
+
+> app04-identity-server@0.1.0 test:headers
+> node --test ../tests/security/check-headers.test.mjs && node ../tests/security/server-headers.mjs
+
+✔ Header checker accepts expected headers and rejects missing/unsafe headers (739.6054ms)
+✔ Header checker requires an explicit URL (83.4158ms)
+ℹ tests 2
+ℹ suites 0
+ℹ pass 2
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1020.6368
+Header checks passed. This does not validate full CSP compatibility or browser flows.
