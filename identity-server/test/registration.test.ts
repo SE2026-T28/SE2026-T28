@@ -1,99 +1,23 @@
 import assert from "node:assert/strict";
-import { randomUUID } from "node:crypto";
-import { once } from "node:events";
-import { createServer } from "node:net";
-import type { AddressInfo } from "node:net";
-import type { Server } from "node:http";
 import { after, before, test } from "node:test";
-
 import argon2 from "argon2";
-import { createApp } from "../src/app.js";
-import { disconnectPrisma, getPrisma } from "../src/db/prisma.js";
+import { getPrisma } from "../src/db/prisma.js";
+import { createIntegrationTestContext } from "./helpers.js";
 
-let server: Server | undefined;
-let baseUrl = "";
-let databaseConnected = false;
-
-async function findAvailablePort(): Promise<number> {
-  const probe = createServer();
-  probe.listen(0, "127.0.0.1");
-  await once(probe, "listening");
-
-  const address = probe.address();
-  assert.ok(address && typeof address !== "string");
-  const port = (address as AddressInfo).port;
-
-  await new Promise<void>((resolve, reject) => {
-    probe.close((error) => (error ? reject(error) : resolve()));
-  });
-
-  return port;
-}
+let context: Awaited<ReturnType<typeof createIntegrationTestContext>>;
+before(async () => { context = await createIntegrationTestContext(); });
+after(async () => { await context?.close(); });
 
 async function register(email: string, password: string): Promise<Response> {
-  return fetch(`${baseUrl}/api/users/register`, {
+  return context.fixtures.track(() => fetch(`${context.baseUrl}/api/users/register`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email, password }),
-  });
+  }));
 }
 
-before(async () => {
-  const databaseUrl = process.env.DATABASE_URL;
-  assert.ok(databaseUrl, "Set DATABASE_URL to a dedicated PostgreSQL test database");
-
-  const databaseName = decodeURIComponent(new URL(databaseUrl).pathname.replace(/^\/+/, ""));
-  assert.match(
-    databaseName,
-    /(?:^|_)test$/i,
-    "Safety check: integration tests only run against a database whose name ends with _test",
-  );
-
-  const prisma = getPrisma();
-  await prisma.$connect();
-  databaseConnected = true;
-
-  // Dọn dữ liệu do lần chạy test trước để lại, chỉ trong database *_test.
-  await prisma.user.deleteMany({
-    where: { email: { startsWith: "a1-test-" } },
-  });
-
-  const port = await findAvailablePort();
-  const config = {
-    port,
-    issuer: `http://localhost:${port}`,
-    clientId: "app04-react-demo",
-    redirectUri: "http://localhost:5173/callback",
-    postLogoutRedirectUri: "http://localhost:5173/",
-    scopes: ["openid", "profile", "email"],
-    corsOrigin: "http://localhost:5173",
-  };
-
-  server = createApp(config).listen(port);
-  await once(server, "listening");
-  baseUrl = config.issuer;
-});
-
-after(async () => {
-  if (server?.listening) {
-    await new Promise<void>((resolve, reject) => {
-      server!.close((error) => (error ? reject(error) : resolve()));
-    });
-  }
-
-  try {
-    if (databaseConnected) {
-      await getPrisma().user.deleteMany({
-        where: { email: { startsWith: "a1-test-" } },
-      });
-    }
-  } finally {
-    await disconnectPrisma();
-  }
-});
-
 test("đăng ký thành công, lưu Argon2id và không trả password hash", async () => {
-  const email = `a1-test-${randomUUID()}@example.com`;
+  const email = context.fixtures.email();
   const password = "A1-Test-Password-123!";
 
   const response = await register(email, password);
@@ -120,7 +44,7 @@ test("đăng ký thành công, lưu Argon2id và không trả password hash", as
 });
 
 test("từ chối email trùng, không phân biệt chữ hoa/thường", async () => {
-  const email = `a1-test-${randomUUID()}@example.com`;
+  const email = context.fixtures.email();
   const password = "A1-Test-Password-123!";
 
   const first = await register(email, password);
@@ -142,7 +66,7 @@ test("từ chối email sai định dạng", async () => {
 });
 
 test("từ chối mật khẩu ngắn hơn 8 ký tự", async () => {
-  const email = `a1-test-${randomUUID()}@example.com`;
+  const email = context.fixtures.email();
   const response = await register(email, "123");
   const data = await response.json() as { error: { code: string } };
 
@@ -151,7 +75,7 @@ test("từ chối mật khẩu ngắn hơn 8 ký tự", async () => {
 });
 
 test("hai request đồng thời cùng email chỉ tạo một người dùng", async () => {
-  const email = `a1-test-${randomUUID()}@example.com`;
+  const email = context.fixtures.email();
   const password = "A1-Test-Password-123!";
 
   const responses = await Promise.all([
@@ -169,7 +93,7 @@ test("hai request đồng thời cùng email chỉ tạo một người dùng", 
 });
 
 test("Registration CORS chỉ cho phép origin của React demo", async () => {
-  const allowed = await fetch(`${baseUrl}/api/users/register`, {
+  const allowed = await fetch(`${context.baseUrl}/api/users/register`, {
     method: "OPTIONS",
     headers: {
       Origin: "http://localhost:5173",
@@ -180,7 +104,7 @@ test("Registration CORS chỉ cho phép origin của React demo", async () => {
   assert.equal(allowed.status, 204);
   assert.equal(allowed.headers.get("access-control-allow-origin"), "http://localhost:5173");
 
-  const denied = await fetch(`${baseUrl}/api/users/register`, {
+  const denied = await fetch(`${context.baseUrl}/api/users/register`, {
     method: "OPTIONS",
     headers: {
       Origin: "http://localhost:5174",
