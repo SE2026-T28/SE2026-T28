@@ -2,15 +2,11 @@ import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import { fileURLToPath } from 'node:url';
 import { createServer } from 'node:net';
+import { assertManagedDatabase } from '../../identity-server/scripts/test-database.mjs';
 
 const cwd = fileURLToPath(new URL('../../identity-server/', import.meta.url));
 const check = fileURLToPath(new URL('./check-headers.mjs', import.meta.url));
-const databaseUrl = process.env.DATABASE_URL;
-if (!databaseUrl) throw new Error('Set DATABASE_URL to a dedicated PostgreSQL *_test database');
-const databaseName = decodeURIComponent(new URL(databaseUrl).pathname.replace(/^\/+/, ''));
-if (!/(?:^|_)test$/i.test(databaseName)) {
-  throw new Error('Header smoke test only runs against a database whose name ends with _test');
-}
+assertManagedDatabase();
 const probe = createServer().listen(0, '127.0.0.1');
 await once(probe, 'listening');
 const port = probe.address().port;

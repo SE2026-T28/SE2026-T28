@@ -46,14 +46,7 @@ Copy-Item .env.example .env
 
 Mở `.env`, kiểm tra `DATABASE_URL` trỏ tới database `app04` và các biến OIDC đúng contract nhóm.
 
-Vì `package.json` đã được hợp nhất từ O1 và A1, cần tạo lockfile mới **một lần**. Không dùng lockfile O1 hoặc A1 cũ:
-
-```powershell
-if (Test-Path package-lock.json) { Remove-Item package-lock.json }
-npm install
-```
-
-Sau khi `npm install` tạo lockfile mới, những lần cài tiếp theo dùng:
+Giữ lockfile đã được review và cài dependency bằng:
 
 ```powershell
 npm ci
@@ -63,10 +56,14 @@ Generate Prisma Client và áp dụng migration vào database development:
 
 ```powershell
 npm run db:generate
+$env:APP04_ALLOW_DEV_MIGRATIONS = "1"
 npm run db:deploy
+Remove-Item Env:APP04_ALLOW_DEV_MIGRATIONS
 ```
 
-`db:deploy` áp dụng migration đã có trong `prisma/migrations/`. `db:migrate` dành cho lúc phát triển schema và tạo migration mới.
+`db:deploy` áp dụng migration đã có trong `prisma/migrations/`. Development chỉ chấp nhận database `app04` tại loopback, không phải production. Cờ opt-in trên cho phép thao tác development có chủ ý, không chứng minh isolation. Khi được duyệt phát triển schema, dùng cùng opt-in và `npm run db:migrate -- --name ten_migration`; Prisma migrate dev có thể tạo shadow database, chỉ chạy trên instance development cá nhân. Không dùng migrate dev trong harness test.
+
+Wrapper khóa `prisma.config.ts`, schema và thư mục migrations; chỉ cho thêm `--name` hợp lệ với migrate dev. Không truyền `--config`, `--schema`, `--url` hoặc lệnh Prisma tùy ý. `db:generate` ngoài harness không kết nối database. Đường development được giữ lại nhưng không được thực thi trong đợt kiểm thử S3.
 
 ## Chạy server
 
@@ -110,24 +107,21 @@ Kết quả thành công là `201` và `user` chỉ có `id`, `email`, `createdA
 
 ## Khởi tạo database test riêng
 
-Tạo database test một lần (không dùng database `app04` để chạy test):
+Không tạo `app04_test` trong container development và không tái sử dụng database có sẵn. Harness tạo instance PostgreSQL 17.11 mới với credential ngẫu nhiên và cổng loopback tạm:
 
 ```powershell
-docker exec app04-postgres psql -U postgres -d postgres -c "CREATE DATABASE app04_test;"
+npm run test:isolated -- --driver=docker
 ```
 
-Nếu database đã tồn tại, bỏ qua bước tạo.
-
-Trỏ terminal hiện tại sang database test, chạy migration, rồi test:
+Trên Windows có PostgreSQL 17.11 cài tại `C:/Program Files/PostgreSQL/17/bin` (hoặc đặt `S3_POSTGRES_BIN`), có thể dùng cluster native mới:
 
 ```powershell
-$env:DATABASE_URL = "postgresql://postgres:postgres@localhost:5432/app04_test?schema=public"
-npx prisma migrate deploy
-npm test
-Remove-Item Env:DATABASE_URL
+npm run test:isolated -- --driver=native
 ```
 
-`npm test` build TypeScript, chạy Discovery test O1 và Registration tests A1 bằng Node.js `node:test`. Registration test tự tìm port, tự khởi động Express app và tự dọn các tài khoản có prefix `a1-test-`. Test từ chối chạy nếu tên database không kết thúc bằng `_test`.
+Harness đối chiếu system identifier từ control file với server sống, data directory, startup time và database chính xác `app04_test` trước migration/test. Session capability chỉ tồn tại trong lượt chạy; `S3_TEST_DATABASE_ISOLATED=1` không được coi là bằng chứng. Không xác minh được thì từ chối, không fallback sang development. Harness generate client, chạy safety tests, deploy hai lần, toàn bộ backend tests/build, hai suite fixture song song và kiểm tra headers; cuối lượt xác nhận 0 user, thu hồi session và dừng instance sở hữu.
+
+Registration test gửi HTTP đến app thật. Fixture cấp email riêng từng scope; mọi registration phải dùng `track()`. Cleanup đóng scope ngay, chờ thao tác đang chạy (kể cả lỗi sau khi ghi), rồi xóa đúng danh sách email của scope. Không xóa theo prefix. Nếu xóa lỗi, giữ danh sách để retry. Kill process/mất điện hoặc ghi DB ngoài `track()` không được bảo đảm cleanup; runtime riêng nằm trong `node_modules/.s3-runs` được Git ignore và có thể chứa log nhạy cảm, không đưa vào báo cáo/Git.
 
 Các trường hợp được kiểm tra:
 
@@ -145,15 +139,14 @@ npm ci
 npm run db:generate
 npm run build
 
-$env:DATABASE_URL = "postgresql://postgres:postgres@localhost:5432/app04_test?schema=public"
-npx prisma migrate deploy
-npm test
-Remove-Item Env:DATABASE_URL
+npm run test:isolated -- --driver=native
 
 npm audit
 ```
 
 Ghi lại kết quả thực tế của từng lệnh trong PR. Không đánh dấu test/audit là pass nếu chưa chạy.
+
+CI Linux dùng driver Docker thay native. `npm test`, `db:deploy`, `db:status`, `test:headers` cần session harness hợp lệ hoặc (chỉ các lệnh database) development opt-in rõ ràng. CLI mặc định từ chối `db push`, `db execute`, seed/reset và lệnh không qua wrapper. Đây là guard cho entry point dự án, không phải sandbox: người dùng chạy Prisma với config bên ngoài, sửa script hoặc tự kết nối SQL có thể bỏ qua nó. Những đường đó không được tuyên bố đã bảo vệ.
 
 ## Ghi chú tích hợp
 
