@@ -65,6 +65,7 @@ test('Integrated registration and health routes keep S4 headers and A1 CORS', as
       });
       assert.equal(response.status, path === '/health' ? 200 : 204);
       assert.match(response.headers.get('content-security-policy') ?? '', /default-src 'self'/);
+      assert.match(response.headers.get('content-security-policy') ?? '', /form-action 'self' http:\/\/localhost:5173/);
       assert.equal(response.headers.get('x-content-type-options'), 'nosniff');
       assert.equal(response.headers.get('referrer-policy'), 'no-referrer');
       assert.equal(response.headers.get('x-powered-by'), null);

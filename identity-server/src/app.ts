@@ -45,7 +45,7 @@ function registrationCors(allowedOrigin: string): express.RequestHandler {
 export function createApp(config: AppConfig, authenticateUser?: AuthenticateUser) {
   const app = express();
   app.disable("x-powered-by");
-  app.use(securityHeaders(config.issuer));
+  app.use(securityHeaders(config.issuer, config.corsOrigin));
 
   // A1: JSON body parser và Registration API. S4 applies security headers above.
   app.use("/api/users", registrationCors(config.corsOrigin));

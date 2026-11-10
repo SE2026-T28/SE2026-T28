@@ -59,4 +59,6 @@ Provider dùng UUID `users.id` làm `accountId`/`sub` và tra user theo ID qua s
 
 Public client bắt buộc PKCE; `plain` và thiếu challenge bị từ chối, chỉ dùng S256. Test `test/interactions.test.ts` kiểm tra yêu cầu authorization, CSRF và giới hạn thử độc lập DB. Test `test/oidc-flow.test.ts` dùng PostgreSQL với tên database kết thúc `_test`, đăng ký user thật qua A1 rồi xác thực Argon2id qua A2–A3 để kiểm tra login, consent, code, ID Token `sub`, UserInfo email và code dùng lại. Test HTTP này chưa chứng minh callback React trong browser; phần đó cần C2.
 
+Helmet CSP cho phép `form-action` tới chính Identity Server và đúng `OIDC_CORS_ORIGIN` đã cấu hình. Chrome kiểm tra toàn bộ chuỗi redirect của form login/consent: nếu chỉ cho `'self'`, bước consent có thể hoàn tất ở Provider nhưng callback sang React bị chặn. Test `test/security-headers.test.ts` giữ ràng buộc origin; smoke test browser cần xác nhận consent → callback sau mỗi lần đổi CSP hoặc redirect URI. Không dùng wildcard cho `form-action`.
+
 OIDC state, grant, session và signing keys vẫn dùng bộ nhớ/default development của O1. Restart làm mất state và thay khóa; production tiếp tục bị chặn. Cookie signing key cũng đổi sau restart. Không lưu mật khẩu hoặc token vào log.
