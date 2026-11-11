@@ -15,6 +15,7 @@ test("login page post tới interaction login và gửi CSRF token cùng credent
     )
   );
   assert.match(html, /name="csrf" value="csrf-456"/);
+  assert.doesNotMatch(html, /name="_csrf"/);
   assert.match(html, /name="email" type="email"/);
   assert.match(html, /name="password" type="password"/);
   assert.match(html, /autocomplete="current-password"/);

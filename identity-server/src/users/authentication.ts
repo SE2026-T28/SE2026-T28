@@ -12,12 +12,18 @@ export type AccountForProvider = Pick<User, "id" | "email">;
 export async function findUserById(
   id: string,
 ): Promise<AccountForProvider | null> {
-  if (typeof id !== "string" || !id.trim()) {
+  const normalizedId = typeof id === "string" ? id.trim() : "";
+  // Prisma/PostgreSQL UUID columns reject malformed values. Treat invalid
+  // identifiers as a normal not-found result instead of leaking a DB error.
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+    normalizedId,
+  );
+  if (!isUuid) {
     return null;
   }
 
   return getPrisma().user.findUnique({
-    where: { id: id.trim() },
+    where: { id: normalizedId },
     select: {
       id: true,
       email: true,
