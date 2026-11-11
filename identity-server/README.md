@@ -1,6 +1,6 @@
 # APP-04 Identity Server — O1
 
-Nền TypeScript + Express + `oidc-provider` cho issue O1. Hiện tại server công bố OIDC Discovery và đăng ký React demo dưới dạng public client. Login/MFA, Authorization Code + PKCE flow xuyên suốt, PostgreSQL adapter và token lifecycle thuộc các issue tiếp theo.
+Nền TypeScript + Express + `oidc-provider` cho issue O1. Hiện tại server công bố OIDC Discovery và đăng ký React demo dưới dạng public client. Authentication A2–A3 cung cấp tra cứu user, kiểm tra Argon2id và renderer login để Provider integration sử dụng. Route interaction, session OIDC, Authorization Code + PKCE flow xuyên suốt, PostgreSQL adapter cho OIDC state và token lifecycle thuộc phần Provider/các issue phối hợp tiếp theo.
 
 ## Chạy local
 
