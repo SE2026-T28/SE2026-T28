@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { once } from "node:events";
 import { createServer } from "node:net";
 import type { AddressInfo } from "node:net";
-import { test } from "node:test";
+import { mock, test } from "node:test";
 import { createApp } from "../src/app.js";
 import { readConfig } from "../src/config.js";
 
@@ -53,6 +53,8 @@ test("valid S256 request reaches login interaction; unavailable auth cannot crea
     const postUrl = new URL(`${location}/login`, issuer);
     const rejected = await fetch(postUrl, { method: "POST", headers: { cookie, "content-type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ email: "a@example.com", password: "test-password", csrf: "wrong" }), redirect: "manual" });
     assert.equal(rejected.status, 403);
+    const missing = await fetch(postUrl, { method: "POST", headers: { cookie, "content-type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ email: "a@example.com", password: "test-password" }), redirect: "manual" });
+    assert.equal(missing.status, 403);
     const unavailable = await fetch(postUrl, { method: "POST", headers: { cookie, "content-type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ email: "a@example.com", password: "test-password", csrf }), redirect: "manual" });
     assert.equal(unavailable.status, 503);
     assert.equal(unavailable.headers.get("location"), null);
@@ -95,4 +97,69 @@ test("failed login attempts are limited for an interaction even after form reloa
     const acrossInteraction = await fetch(new URL(`${anotherLocation}/login`, issuer), { method: "POST", headers: { cookie: anotherCookie, "content-type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ email: "a@example.test", password: "wrong-password", csrf: anotherCsrf }), redirect: "manual" });
     assert.equal(acrossInteraction.status, 429);
   }, async () => null);
+});
+
+test("CSRF token from one interaction cannot be submitted with another browser cookie", async () => {
+  let authentications = 0;
+  await serve(async issuer => {
+    const startA = await fetch(authUrl(issuer, { state: "browser-a" }), { redirect: "manual" });
+    const uidA = startA.headers.get("location")!;
+    const cookieA = startA.headers.getSetCookie().map(value => value.split(";")[0]).join("; ");
+    const htmlA = await (await fetch(new URL(uidA, issuer), { headers: { cookie: cookieA } })).text();
+    const csrfA = htmlA.match(/name="csrf" value="([a-f0-9]+)"/)?.[1];
+    assert.ok(csrfA);
+
+    const startB = await fetch(authUrl(issuer, { state: "browser-b" }), { redirect: "manual" });
+    const cookieB = startB.headers.getSetCookie().map(value => value.split(";")[0]).join("; ");
+    const response = await fetch(new URL(`${uidA}/login`, issuer), {
+      method: "POST", redirect: "manual",
+      headers: { cookie: cookieB, "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ email: "a@example.test", password: "correct-password", csrf: csrfA }),
+    });
+    assert.equal(response.status, 403);
+    assert.equal(authentications, 0);
+  }, async () => { authentications++; return { id: "11111111-1111-4111-8111-111111111111", email: "a@example.test" }; });
+});
+
+test("expired CSRF form token is rejected before password verification", async () => {
+  let authentications = 0;
+  await serve(async issuer => {
+    const start = await fetch(authUrl(issuer), { redirect: "manual" });
+    const location = start.headers.get("location")!;
+    const cookie = start.headers.getSetCookie().map(value => value.split(";")[0]).join("; ");
+    const html = await (await fetch(new URL(location, issuer), { headers: { cookie } })).text();
+    const csrf = html.match(/name="csrf" value="([a-f0-9]+)"/)?.[1];
+    assert.ok(csrf);
+    const originalNow = Date.now();
+    const clock = mock.method(Date, "now", () => originalNow + 10 * 60 * 1000 + 1);
+    try {
+      const response = await fetch(new URL(`${location}/login`, issuer), {
+        method: "POST", redirect: "manual",
+        headers: { cookie, "content-type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({ email: "a@example.test", password: "correct-password", csrf }),
+      });
+      assert.equal(response.status, 403);
+      assert.equal(authentications, 0);
+    } finally { clock.mock.restore(); }
+  }, async () => { authentications++; return null; });
+});
+
+test("completed login interaction rejects replay of its CSRF token", async () => {
+  let authentications = 0;
+  await serve(async issuer => {
+    const start = await fetch(authUrl(issuer), { redirect: "manual" });
+    const location = start.headers.get("location")!;
+    const cookie = start.headers.getSetCookie().map(value => value.split(";")[0]).join("; ");
+    const html = await (await fetch(new URL(location, issuer), { headers: { cookie } })).text();
+    const csrf = html.match(/name="csrf" value="([a-f0-9]+)"/)?.[1];
+    assert.ok(csrf);
+    const submit = () => fetch(new URL(`${location}/login`, issuer), {
+      method: "POST", redirect: "manual",
+      headers: { cookie, "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ email: "a@example.test", password: "correct-password", csrf }),
+    });
+    assert.equal((await submit()).status, 303);
+    assert.notEqual((await submit()).status, 303);
+    assert.equal(authentications, 1);
+  }, async () => { authentications++; return { id: "11111111-1111-4111-8111-111111111111", email: "a@example.test" }; });
 });

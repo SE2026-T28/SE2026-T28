@@ -1,5 +1,5 @@
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
-import { Router, type Request, type Response } from "express";
+import { Router, type NextFunction, type Request, type Response } from "express";
 import type Provider from "oidc-provider";
 import { normalizeEmail } from "../users/email.js";
 import { renderLoginPage } from "../users/login-page.js";
@@ -13,6 +13,16 @@ const FORM_TTL_MS = 10 * 60 * 1000;
 const RATE_WINDOW_MS = 15 * 60 * 1000;
 const MAX_EMAIL_FAILURES = 5;
 const MAX_IP_FAILURES = 20;
+
+class InteractionUidMismatch extends Error {}
+
+function handleInteractionError(error: unknown, res: Response, next: NextFunction): void {
+  if (error instanceof InteractionUidMismatch) {
+    res.sendStatus(403);
+    return;
+  }
+  next(error);
+}
 
 function escapeHtml(value: string): string {
   return value.replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]!);
@@ -71,7 +81,7 @@ export function interactionRouter(provider: Provider, authenticateUser?: Authent
 
   async function details(req: Request, res: Response) {
     const interaction = await provider.interactionDetails(req, res);
-    if (interaction.uid !== req.params.uid) throw new Error("Interaction UID mismatch");
+    if (interaction.uid !== req.params.uid) throw new InteractionUidMismatch();
     return interaction;
   }
 
@@ -87,7 +97,7 @@ export function interactionRouter(provider: Provider, authenticateUser?: Authent
         return res.type("html").send(consentPage(interaction.uid, String(interaction.params.client_id ?? ""), String(interaction.params.scope ?? ""), form.token));
       }
       return res.status(400).type("html").send(page("Yêu cầu không được hỗ trợ", ""));
-    } catch (error) { next(error); }
+    } catch (error) { handleInteractionError(error, res, next); }
   });
 
   router.post("/:uid/login", async (req, res, next) => {
@@ -117,7 +127,7 @@ export function interactionRouter(provider: Provider, authenticateUser?: Authent
       failures.delete(identity);
       forms.delete(interaction.uid);
       return await provider.interactionFinished(req, res, { login: { accountId: user.id } }, { mergeWithLastSubmission: false });
-    } catch (error) { next(error); }
+    } catch (error) { handleInteractionError(error, res, next); }
   });
 
   router.post("/:uid/consent", async (req, res, next) => {
@@ -142,7 +152,7 @@ export function interactionRouter(provider: Provider, authenticateUser?: Authent
         }
       }
       return await provider.interactionFinished(req, res, { consent: { grantId: await grant.save() } }, { mergeWithLastSubmission: true });
-    } catch (error) { next(error); }
+    } catch (error) { handleInteractionError(error, res, next); }
   });
 
   return router;

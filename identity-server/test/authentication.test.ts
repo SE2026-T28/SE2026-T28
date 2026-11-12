@@ -57,6 +57,7 @@ test("trả null khi tra cứu ID không tồn tại hoặc rỗng", async () =>
   assert.equal(await findUserById(""), null);
   assert.equal(await findUserById("   "), null);
   assert.equal(await findUserById("not-a-uuid"), null);
+  assert.equal(await findUserById("12345678-1234-1234-1234-not-a-uuid"), null);
 });
 
 test("trả null khi tra cứu email không tồn tại hoặc sai định dạng", async () => {

@@ -54,6 +54,10 @@ test("registered account completes login, consent and one-use S256 code", { skip
     const wrong = await post(`${location}/login`, { email, password: "wrong", csrf });
     assert.equal(wrong.status, 401);
     assert.equal(wrong.headers.get("location"), null);
+    const wrongHtml = await wrong.text();
+    const unknown = await post(`${location}/login`, { email: `unknown-${email}`, password, csrf });
+    assert.equal(unknown.status, 401);
+    assert.equal(await unknown.text(), wrongHtml);
     response = await post(`${location}/login`, { email, password, csrf });
     assert.equal(response.status, 303);
     location = response.headers.get("location")!;
