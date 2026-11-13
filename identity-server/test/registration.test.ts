@@ -189,3 +189,73 @@ test("Registration CORS chỉ cho phép origin của React demo", async () => {
   });
   assert.equal(denied.status, 403);
 });
+
+test("import bulk xử lý độc lập bản ghi hợp lệ và không trả password", async () => {
+  const prefix = `a1-test-bulk-${randomUUID()}`;
+  const validEmail1 = `${prefix}-1@example.com`;
+  const invalidEmail = `${prefix}-invalid`;
+  const validEmail2 = `${prefix}-2@example.com`;
+  const password1 = "Valid-Password-123";
+  const password2 = "Valid-Password-456";
+  const password3 = "Valid-Password-789";
+
+  const response = await fetch(`${baseUrl}/api/users/import`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      users: [
+        { email: validEmail1, password: password1 },
+        { email: invalidEmail, password: password2 },
+        { email: validEmail2, password: password3 },
+      ],
+    }),
+  });
+  const responseText = await response.text();
+  assert.equal(
+    response.status,
+    200,
+    `Expected bulk import HTTP 200, received ${response.status}. Response: ${responseText}`,
+  );
+  const data = JSON.parse(responseText) as {
+    summary: { total: number; succeeded: number; failed: number };
+    results: Array<{
+      index: number;
+      status: "succeeded" | "failed";
+      user?: { id: string; email: string; createdAt: string };
+      error?: { code: string };
+    }>;
+  };
+
+  assert.deepEqual(data.summary, { total: 3, succeeded: 2, failed: 1 });
+  assert.deepEqual(data.results.map((result) => result.index), [0, 1, 2]);
+  assert.equal(data.results[0]?.status, "succeeded");
+  assert.equal(data.results[0]?.user?.email, validEmail1);
+  assert.equal(data.results[2]?.status, "succeeded");
+  assert.equal(data.results[2]?.user?.email, validEmail2);
+  assert.equal(data.results[1]?.status, "failed");
+  assert.equal(data.results[1]?.error?.code, "INVALID_INPUT");
+
+  for (const result of [data.results[0], data.results[2]]) {
+    assert.equal(result?.status, "succeeded");
+    assert.ok(result?.user);
+    assert.deepEqual(Object.keys(result.user).sort(), ["createdAt", "email", "id"]);
+  }
+
+  assert.equal(responseText.includes(password1), false);
+  assert.equal(responseText.includes(password2), false);
+  assert.equal(responseText.includes(password3), false);
+  assert.equal(responseText.toLowerCase().includes("passwordhash"), false);
+
+  const storedUsers = await getPrisma().user.findMany({
+    where: { email: { in: [validEmail1, validEmail2, invalidEmail] } },
+    select: { email: true, passwordHash: true },
+    orderBy: { email: "asc" },
+  });
+
+  assert.deepEqual(storedUsers.map((user) => user.email), [validEmail1, validEmail2].sort());
+  assert.equal(storedUsers.length, 2);
+  for (const user of storedUsers) {
+    assert.match(user.passwordHash, /^\$argon2id\$/);
+  }
+  assert.equal(storedUsers.some((user) => user.email === invalidEmail), false);
+});

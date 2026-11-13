@@ -43,33 +43,77 @@ function normalizeAndValidate(input: RegisterInput): RegisterInput {
 
 export type PublicUser = Pick<User, "id" | "email" | "createdAt">;
 
-export async function registerUser(input: RegisterInput): Promise<PublicUser> {
-  const valid = normalizeAndValidate(input);
-  const passwordHash = await argon2.hash(valid.password, {
+class BulkPersistenceError extends Error {
+  constructor(cause: unknown) {
+    super("Bulk user persistence failed", { cause });
+    this.name = "BulkPersistenceError";
+  }
+}
+
+async function createUser(
+  input: RegisterInput,
+  mapPersistenceErrors = false,
+): Promise<PublicUser> {
+  const passwordHash = await argon2.hash(input.password, {
     type: argon2.argon2id,
   });
 
   try {
-    const user = await getPrisma().user.create({
-      data: {
-        email: valid.email,
-        passwordHash,
-      },
-      select: {
-        id: true,
-        email: true,
-        createdAt: true,
-      },
+    return await getPrisma().user.create({
+      data: { email: input.email, passwordHash },
+      select: { id: true, email: true, createdAt: true },
     });
-    return user;
   } catch (error) {
-    // Unique index PostgreSQL là lớp bảo vệ cuối cùng cho request đồng thời.
     if (
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === "P2002"
     ) {
       throw new RegistrationError("EMAIL_EXISTS", "Email đã được đăng ký.");
     }
+    if (mapPersistenceErrors) {
+      throw new BulkPersistenceError(error);
+    }
     throw error;
   }
+}
+
+export async function registerUser(input: RegisterInput): Promise<PublicUser> {
+  const valid = normalizeAndValidate(input);
+  return createUser(valid);
+}
+
+export type BulkRegistrationResult =
+  | { index: number; status: "succeeded"; user: PublicUser }
+  | { index: number; status: "failed"; error: { code: string } };
+
+export async function importUsers(inputs: unknown[]): Promise<BulkRegistrationResult[]> {
+  const claimedEmails = new Set<string>();
+  const results: BulkRegistrationResult[] = [];
+
+  for (const [index, input] of inputs.entries()) {
+    try {
+      if (input === null || typeof input !== "object") {
+        throw new RegistrationError("INVALID_INPUT", "Dữ liệu người dùng không hợp lệ.");
+      }
+      const valid = normalizeAndValidate(input as RegisterInput);
+      if (claimedEmails.has(valid.email)) {
+        results.push({ index, status: "failed", error: { code: "EMAIL_EXISTS" } });
+        continue;
+      }
+
+      claimedEmails.add(valid.email);
+      const user = await createUser(valid, true);
+      results.push({ index, status: "succeeded", user });
+    } catch (error) {
+      if (error instanceof RegistrationError) {
+        results.push({ index, status: "failed", error: { code: error.code } });
+      } else if (error instanceof BulkPersistenceError) {
+        results.push({ index, status: "failed", error: { code: "PERSISTENCE_ERROR" } });
+      } else {
+        results.push({ index, status: "failed", error: { code: "HASH_ERROR" } });
+      }
+    }
+  }
+
+  return results;
 }
