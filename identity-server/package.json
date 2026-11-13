@@ -34,8 +34,15 @@
     "@types/express": "5.0.6",
     "@types/node": "24.19.2",
     "@types/oidc-provider": "9.12.1",
+    "fast-check": "^4.10.2",
     "prisma": "7.10.1",
     "tsx": "4.20.5",
     "typescript": "5.9.3"
+  },
+  "allowScripts": {
+    "@prisma/engines@7.10.1": true,
+    "argon2@0.45.1": true,
+    "prisma@7.10.1": true,
+    "esbuild@0.25.12": true
   }
 }

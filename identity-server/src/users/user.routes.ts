@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { registerUser, RegistrationError } from "./registration.js";
+import { importUsers, registerUser, RegistrationError } from "./registration.js";
 
 export const userRouter = Router();
 
@@ -18,6 +18,28 @@ userRouter.post("/register", async (req, res, next) => {
       });
       return;
     }
+    next(error);
+  }
+});
+
+userRouter.post("/import", async (req, res, next) => {
+  try {
+    if (!req.body || !Array.isArray(req.body.users) || req.body.users.length === 0) {
+      res.status(400).json({ error: { code: "INVALID_REQUEST" } });
+      return;
+    }
+
+    const results = await importUsers(req.body.users);
+    const succeeded = results.filter((result) => result.status === "succeeded").length;
+    res.status(200).json({
+      summary: {
+        total: results.length,
+        succeeded,
+        failed: results.length - succeeded,
+      },
+      results,
+    });
+  } catch (error) {
     next(error);
   }
 });
