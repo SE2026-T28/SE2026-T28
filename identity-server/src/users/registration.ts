@@ -43,6 +43,34 @@ function normalizeAndValidate(input: RegisterInput): RegisterInput {
 
 export type PublicUser = Pick<User, "id" | "email" | "createdAt">;
 
+const MAX_CONCURRENT_PASSWORD_HASHES = 8;
+
+class PasswordHashSemaphore {
+  private available = MAX_CONCURRENT_PASSWORD_HASHES;
+  private readonly waiters: Array<() => void> = [];
+
+  async acquire(): Promise<() => void> {
+    if (this.available > 0) {
+      this.available -= 1;
+      return () => this.release();
+    }
+
+    await new Promise<void>((resolve) => this.waiters.push(resolve));
+    return () => this.release();
+  }
+
+  private release(): void {
+    const next = this.waiters.shift();
+    if (next) {
+      next();
+      return;
+    }
+    this.available += 1;
+  }
+}
+
+const passwordHashSemaphore = new PasswordHashSemaphore();
+
 class BulkPersistenceError extends Error {
   constructor(cause: unknown) {
     super("Bulk user persistence failed", { cause });
@@ -54,9 +82,15 @@ async function createUser(
   input: RegisterInput,
   mapPersistenceErrors = false,
 ): Promise<PublicUser> {
-  const passwordHash = await argon2.hash(input.password, {
-    type: argon2.argon2id,
-  });
+  const releaseHash = await passwordHashSemaphore.acquire();
+  let passwordHash: string;
+  try {
+    passwordHash = await argon2.hash(input.password, {
+      type: argon2.argon2id,
+    });
+  } finally {
+    releaseHash();
+  }
 
   try {
     return await getPrisma().user.create({

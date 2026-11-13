@@ -639,3 +639,50 @@ test("TC-22: trả HASH_ERROR khi Argon2id hash thất bại", async (t) => {
   assert.equal(responseText.includes("Valid-Password-123"), false);
   assert.equal(responseText.toLowerCase().includes("passwordhash"), false);
 });
+
+test("giới hạn tám thao tác Argon2id đồng thời", async (t) => {
+  const prefix = `a1-test-bulk-${randomUUID()}`;
+  let activeHashes = 0;
+  let peakHashes = 0;
+  t.mock.method(argon2, "hash", async () => {
+    activeHashes += 1;
+    peakHashes = Math.max(peakHashes, activeHashes);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    activeHashes -= 1;
+    return "fake-argon2id-hash";
+  });
+
+  const responses = await Promise.all(
+    Array.from({ length: 12 }, (_, index) => fetch(`${baseUrl}/api/users/import`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        users: [{
+          email: `${prefix}-${index}@example.com`,
+          password: `Valid-Password-${index}`,
+        }],
+      }),
+    })),
+  );
+  const responseBodies = await Promise.all(responses.map(async (response) => ({
+    response,
+    data: await response.json() as {
+      summary: { total: number; succeeded: number; failed: number };
+      results: Array<{ status: string }>;
+    },
+  })));
+
+  assert.ok(peakHashes > 1, `Expected concurrent hash peak > 1, received ${peakHashes}`);
+  assert.ok(peakHashes <= 8, `Expected concurrent hash peak <= 8, received ${peakHashes}`);
+  for (const { response, data } of responseBodies) {
+    assert.equal(response.status, 200);
+    assert.deepEqual(data.summary, { total: 1, succeeded: 1, failed: 0 });
+    assert.equal(data.results[0]?.status, "succeeded");
+  }
+
+  const storedUsers = await getPrisma().user.findMany({
+    where: { email: { startsWith: prefix } },
+    select: { email: true },
+  });
+  assert.equal(storedUsers.length, 12);
+});
