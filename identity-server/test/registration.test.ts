@@ -535,3 +535,107 @@ test("import bulk nhận diện duplicate email bằng property", async () => {
     { numRuns: 10 },
   );
 });
+
+test("TC-20: từ chối request bulk có envelope không hợp lệ", async () => {
+  const prefix = `a1-test-bulk-${randomUUID()}`;
+  const requests = [
+    {},
+    { users: { email: `${prefix}@example.com`, password: "Valid-Password-123" } },
+    { users: [] },
+  ];
+
+  for (const body of requests) {
+    const response = await fetch(`${baseUrl}/api/users/import`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const data = await response.json() as { error: { code: string } };
+
+    assert.equal(response.status, 400);
+    assert.equal(data.error.code, "INVALID_REQUEST");
+  }
+
+  const storedUsers = await getPrisma().user.findMany({
+    where: { email: { startsWith: prefix } },
+    select: { email: true },
+  });
+  assert.equal(storedUsers.length, 0);
+});
+
+test("TC-21: từ chối mọi bản ghi bulk sai kiểu dữ liệu", async () => {
+  const prefix = `a1-test-bulk-${randomUUID()}`;
+  const users = [
+    null,
+    "not-an-object",
+    { email: 123, password: "Valid-Password-123" },
+    { email: `${prefix}@example.com`, password: 456 },
+  ];
+
+  const response = await fetch(`${baseUrl}/api/users/import`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ users }),
+  });
+  const responseText = await response.text();
+  assert.equal(
+    response.status,
+    200,
+    `Expected bulk import HTTP 200, received ${response.status}. Response: ${responseText}`,
+  );
+  const data = JSON.parse(responseText) as {
+    summary: { total: number; succeeded: number; failed: number };
+    results: Array<{ index: number; status: string; error?: { code: string } }>;
+  };
+
+  assert.deepEqual(data.summary, { total: 4, succeeded: 0, failed: 4 });
+  assert.deepEqual(data.results.map((result) => result.index), [0, 1, 2, 3]);
+  for (const result of data.results) {
+    assert.equal(result.status, "failed");
+    assert.equal(result.error?.code, "INVALID_INPUT");
+  }
+
+  const storedUsers = await getPrisma().user.findMany({
+    where: { email: { startsWith: prefix } },
+    select: { email: true },
+  });
+  assert.equal(storedUsers.length, 0);
+});
+
+test("TC-22: trả HASH_ERROR khi Argon2id hash thất bại", async (t) => {
+  const prefix = `a1-test-bulk-${randomUUID()}`;
+  const email = `${prefix}@example.com`;
+  t.mock.method(argon2, "hash", async () => {
+    throw new Error("controlled hash failure");
+  });
+
+  const response = await fetch(`${baseUrl}/api/users/import`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      users: [{ email, password: "Valid-Password-123" }],
+    }),
+  });
+  const responseText = await response.text();
+  assert.equal(
+    response.status,
+    200,
+    `Expected bulk import HTTP 200, received ${response.status}. Response: ${responseText}`,
+  );
+  const data = JSON.parse(responseText) as {
+    summary: { total: number; succeeded: number; failed: number };
+    results: Array<{ status: string; error?: { code: string } }>;
+  };
+
+  assert.deepEqual(data.summary, { total: 1, succeeded: 0, failed: 1 });
+  assert.equal(data.results[0]?.status, "failed");
+  assert.equal(data.results[0]?.error?.code, "HASH_ERROR");
+
+  const storedUser = await getPrisma().user.findUnique({
+    where: { email },
+    select: { email: true },
+  });
+  assert.equal(storedUser, null);
+  assert.equal(responseText.includes("Valid-Password-123"), false);
+  assert.equal(responseText.toLowerCase().includes("passwordhash"), false);
+});
