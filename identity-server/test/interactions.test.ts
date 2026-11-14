@@ -290,6 +290,7 @@ test("concurrent interactions reserve the email limit before authentication comp
 });
 
 test("expired in-flight claim cannot finish interaction or consume replacement form", async () => {
+  let calls = 0;
   let release!: () => void;
   let entered!: () => void;
   const gate = new Promise<void>(resolve => { release = resolve; });
@@ -314,11 +315,102 @@ test("expired in-flight claim cannot finish interaction or consume replacement f
       const newCsrf = replacement.match(/name="csrf" value="([a-f0-9]+)"/)?.[1];
       assert.ok(newCsrf);
       assert.notEqual(newCsrf, csrf);
+      let timeout!: ReturnType<typeof setTimeout>;
+      const competing = await Promise.race([
+        submit(newCsrf),
+        new Promise<null>(resolve => { timeout = setTimeout(() => resolve(null), 2000); }),
+      ]);
+      clearTimeout(timeout);
+      assert.equal(competing?.status, 409);
+      assert.equal(calls, 1);
       release();
       assert.equal((await old).status, 403);
       assert.equal((await submit(newCsrf)).status, 303);
+      assert.equal(calls, 2);
     } finally { clock.mock.restore(); release(); }
-  }, async () => { entered(); await gate; return { id: "11111111-1111-4111-8111-111111111111", email: "a@example.test" }; });
+  }, async () => { calls++; entered(); await gate; return { id: "11111111-1111-4111-8111-111111111111", email: "a@example.test" }; });
+});
+
+test("expired failed login still counts against email and IP limits", async () => {
+  let release!: () => void;
+  let entered!: () => void;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  const started = new Promise<void>(resolve => { entered = resolve; });
+  let calls = 0;
+  await serve(async issuer => {
+    const openForm = async (state: string) => {
+      const begin = await fetch(authUrl(issuer, { state }), { redirect: "manual" });
+      const location = begin.headers.get("location")!;
+      const cookie = begin.headers.getSetCookie().map(value => value.split(";")[0]).join("; ");
+      const html = await (await fetch(new URL(location, issuer), { headers: { cookie } })).text();
+      const csrf = html.match(/name="csrf" value="([a-f0-9]+)"/)?.[1];
+      assert.ok(csrf);
+      return { location, cookie, csrf };
+    };
+    const submit = ({ location, cookie, csrf }: Awaited<ReturnType<typeof openForm>>) => fetch(new URL(`${location}/login`, issuer), {
+      method: "POST", redirect: "manual", headers: { cookie, "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ email: "expired-failure@example.test", password: "wrong-password", csrf }),
+    });
+    for (let i = 0; i < 4; i++) assert.equal((await submit(await openForm(`prior-${i}`))).status, 401);
+    const fifth = await openForm("expires-during-auth");
+    const pending = submit(fifth);
+    await started;
+    const now = Date.now();
+    const clock = mock.method(Date, "now", () => now + 10 * 60 * 1000 + 1);
+    try {
+      const replacement = await (await fetch(new URL(fifth.location, issuer), { headers: { cookie: fifth.cookie } })).text();
+      assert.match(replacement, /name="csrf" value="[a-f0-9]+"/);
+      release();
+      assert.equal((await pending).status, 403);
+      assert.equal((await submit(await openForm("after-expired-failure"))).status, 429);
+      assert.equal(calls, 5);
+    } finally { clock.mock.restore(); release(); }
+  }, async () => { calls++; if (calls === 5) { entered(); await gate; } return null; });
+});
+
+test("IP limit counts concurrent attempts with different email addresses", async () => {
+  let calls = 0;
+  let release!: () => void;
+  let entered!: () => void;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  const twentiethEntered = new Promise<void>(resolve => { entered = resolve; });
+  await serve(async issuer => {
+    const submissions: Array<() => Promise<Response>> = [];
+    for (let i = 0; i < 21; i++) {
+      const begin = await fetch(authUrl(issuer, { state: `ip-${i}` }), { redirect: "manual" });
+      const location = begin.headers.get("location")!;
+      const cookie = begin.headers.getSetCookie().map(value => value.split(";")[0]).join("; ");
+      const html = await (await fetch(new URL(location, issuer), { headers: { cookie } })).text();
+      const csrf = html.match(/name="csrf" value="([a-f0-9]+)"/)?.[1];
+      assert.ok(csrf);
+      submissions.push(() => fetch(new URL(`${location}/login`, issuer), {
+        method: "POST", redirect: "manual", headers: { cookie, "content-type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({ email: `different-${i}@example.test`, password: "wrong-password", csrf }),
+      }));
+    }
+    const pending = submissions.slice(0, 20).map(submit => submit());
+    await twentiethEntered;
+    assert.equal((await submissions[20]()).status, 429);
+    assert.equal(calls, 20);
+    const now = Date.now();
+    const clock = mock.method(Date, "now", () => now + 10 * 60 * 1000 + 1);
+    try {
+      release();
+      for (const response of await Promise.all(pending)) assert.equal(response.status, 403);
+      const begin = await fetch(authUrl(issuer, { state: "ip-after-expired-failures" }), { redirect: "manual" });
+      const location = begin.headers.get("location")!;
+      const cookie = begin.headers.getSetCookie().map(value => value.split(";")[0]).join("; ");
+      const html = await (await fetch(new URL(location, issuer), { headers: { cookie } })).text();
+      const csrf = html.match(/name="csrf" value="([a-f0-9]+)"/)?.[1];
+      assert.ok(csrf);
+      const blockedAfterCompletion = await fetch(new URL(`${location}/login`, issuer), {
+        method: "POST", redirect: "manual", headers: { cookie, "content-type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({ email: "another-address@example.test", password: "wrong-password", csrf }),
+      });
+      assert.equal(blockedAfterCompletion.status, 429);
+      assert.equal(calls, 20);
+    } finally { clock.mock.restore(); release(); }
+  }, async () => { calls++; if (calls === 20) entered(); await gate; return null; });
 });
 
 test("Unicode CSRF values are rejected without reaching Authentication", async () => {

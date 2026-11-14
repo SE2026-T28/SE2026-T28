@@ -7,7 +7,7 @@ import { renderLoginPage } from "../users/login-page.js";
 export interface AuthenticatedUser { id: string; email: string }
 export type AuthenticateUser = (email: string, password: string) => Promise<AuthenticatedUser | null>;
 
-const forms = new Map<string, { token: string; attempts: number; expires: number; processing: boolean }>();
+const forms = new Map<string, { token: string; attempts: number; expires: number }>();
 const MAX_ATTEMPTS = 5;
 const FORM_TTL_MS = 10 * 60 * 1000;
 const RATE_WINDOW_MS = 15 * 60 * 1000;
@@ -33,10 +33,10 @@ function page(title: string, body: string): string {
 }
 
 function newForm(uid: string) {
-  for (const [key, entry] of forms) if (entry.expires <= Date.now() && !entry.processing) forms.delete(key);
+  for (const [key, entry] of forms) if (entry.expires <= Date.now()) forms.delete(key);
   const existing = forms.get(uid);
   if (existing && existing.expires > Date.now()) return existing;
-  const form = { token: randomBytes(32).toString("hex"), attempts: 0, expires: Date.now() + FORM_TTL_MS, processing: false };
+  const form = { token: randomBytes(32).toString("hex"), attempts: 0, expires: Date.now() + FORM_TTL_MS };
   forms.set(uid, form);
   return form;
 }
@@ -55,6 +55,7 @@ export function interactionRouter(provider: Provider, authenticateUser?: Authent
   const rateKey = randomBytes(32);
   const failures = new Map<string, { count: number; expires: number }>();
   const pending = new Map<string, number>();
+  const processingUids = new Set<string>();
 
   function emailKey(email: string): string {
     return `email:${createHmac("sha256", rateKey).update(email).digest("hex")}`;
@@ -114,7 +115,7 @@ export function interactionRouter(provider: Provider, authenticateUser?: Authent
       if (interaction.prompt.name !== "login") return res.sendStatus(400);
       const form = forms.get(interaction.uid);
       if (!form || form.expires < Date.now() || !validToken(req.body?.csrf, form.token)) return res.sendStatus(403);
-      if (form.processing) return res.sendStatus(409);
+      if (processingUids.has(interaction.uid)) return res.sendStatus(409);
       if (form.attempts >= MAX_ATTEMPTS) return res.status(429).type("html").send(page("Đăng nhập", "<p>Đã vượt quá số lần thử. Hãy bắt đầu lại.</p>"));
       if (!authenticateUser) return res.status(503).type("html").send(page("Đăng nhập", "<p>Chức năng đăng nhập chưa sẵn sàng.</p>"));
       const email = req.body?.email;
@@ -129,18 +130,21 @@ export function interactionRouter(provider: Provider, authenticateUser?: Authent
       }
       // Claim synchronously before the asynchronous password check: only one
       // request may attempt to finish this interaction at a time.
-      form.processing = true;
+      processingUids.add(interaction.uid);
       form.attempts++;
       reserve(identity);
       reserve(ip);
       try {
         const user = await authenticateUser(email, password);
+        if (!user) {
+          // A failed password still counts when a GET replaced the expired form.
+          recordFailure(identity);
+          recordFailure(ip);
+        }
         // A GET may have replaced an expired form while Authentication was pending.
         // The old request must never complete that interaction or consume its new form.
         if (forms.get(interaction.uid) !== form || form.expires <= Date.now()) return res.sendStatus(403);
         if (!user) {
-          recordFailure(identity);
-          recordFailure(ip);
           return res.status(401).type("html").send(renderLoginPage({ uid: interaction.uid, csrfToken: form.token, error: "invalid_credentials" }));
         }
         failures.delete(identity);
@@ -149,12 +153,9 @@ export function interactionRouter(provider: Provider, authenticateUser?: Authent
       } finally {
         release(identity);
         release(ip);
-        // Bad credentials or a backend error may be retried while the form is
-        // valid. Successful login consumes the form before finishing OIDC.
-        if (forms.get(interaction.uid) === form) {
-          if (form.expires <= Date.now()) forms.delete(interaction.uid);
-          else form.processing = false;
-        }
+        processingUids.delete(interaction.uid);
+        // Bad credentials or a backend error may be retried while valid.
+        if (forms.get(interaction.uid) === form && form.expires <= Date.now()) forms.delete(interaction.uid);
       }
     } catch (error) { handleInteractionError(error, res, next); }
   });
