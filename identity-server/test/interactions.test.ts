@@ -258,3 +258,83 @@ test("authentication backend error releases the interaction for a later retry", 
     return null;
   });
 });
+
+test("concurrent interactions reserve the email limit before authentication completes", async () => {
+  let calls = 0;
+  let release!: () => void;
+  let entered!: () => void;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  const fifthEntered = new Promise<void>(resolve => { entered = resolve; });
+  await serve(async issuer => {
+    const submissions: Array<() => Promise<Response>> = [];
+    for (let i = 0; i < 6; i++) {
+      const start = await fetch(authUrl(issuer, { state: `reservation-${i}` }), { redirect: "manual" });
+      const location = start.headers.get("location")!;
+      const cookie = start.headers.getSetCookie().map(value => value.split(";")[0]).join("; ");
+      const html = await (await fetch(new URL(location, issuer), { headers: { cookie } })).text();
+      const csrf = html.match(/name="csrf" value="([a-f0-9]+)"/)?.[1];
+      assert.ok(csrf);
+      submissions.push(() => fetch(new URL(`${location}/login`, issuer), {
+        method: "POST", redirect: "manual", headers: { cookie, "content-type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({ email: "same@example.test", password: "wrong-password", csrf }),
+      }));
+    }
+    const firstFive = submissions.slice(0, 5).map(submit => submit());
+    await fifthEntered;
+    const blocked = await submissions[5]();
+    assert.equal(blocked.status, 429);
+    assert.equal(calls, 5);
+    release();
+    for (const response of await Promise.all(firstFive)) assert.equal(response.status, 401);
+  }, async () => { calls++; if (calls === 5) entered(); await gate; return null; });
+});
+
+test("expired in-flight claim cannot finish interaction or consume replacement form", async () => {
+  let release!: () => void;
+  let entered!: () => void;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  const started = new Promise<void>(resolve => { entered = resolve; });
+  await serve(async issuer => {
+    const begin = await fetch(authUrl(issuer), { redirect: "manual" });
+    const location = begin.headers.get("location")!;
+    const cookie = begin.headers.getSetCookie().map(value => value.split(";")[0]).join("; ");
+    const html = await (await fetch(new URL(location, issuer), { headers: { cookie } })).text();
+    const csrf = html.match(/name="csrf" value="([a-f0-9]+)"/)?.[1];
+    assert.ok(csrf);
+    const submit = (token: string) => fetch(new URL(`${location}/login`, issuer), {
+      method: "POST", redirect: "manual", headers: { cookie, "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ email: "a@example.test", password: "correct-password", csrf: token }),
+    });
+    const old = submit(csrf);
+    await started;
+    const now = Date.now();
+    const clock = mock.method(Date, "now", () => now + 10 * 60 * 1000 + 1);
+    try {
+      const replacement = await (await fetch(new URL(location, issuer), { headers: { cookie } })).text();
+      const newCsrf = replacement.match(/name="csrf" value="([a-f0-9]+)"/)?.[1];
+      assert.ok(newCsrf);
+      assert.notEqual(newCsrf, csrf);
+      release();
+      assert.equal((await old).status, 403);
+      assert.equal((await submit(newCsrf)).status, 303);
+    } finally { clock.mock.restore(); release(); }
+  }, async () => { entered(); await gate; return { id: "11111111-1111-4111-8111-111111111111", email: "a@example.test" }; });
+});
+
+test("Unicode CSRF values are rejected without reaching Authentication", async () => {
+  let calls = 0;
+  await serve(async issuer => {
+    const begin = await fetch(authUrl(issuer), { redirect: "manual" });
+    const location = begin.headers.get("location")!;
+    const cookie = begin.headers.getSetCookie().map(value => value.split(";")[0]).join("; ");
+    await fetch(new URL(location, issuer), { headers: { cookie } });
+    for (const token of ["é".repeat(64), "😀".repeat(32)]) {
+      const response = await fetch(new URL(`${location}/login`, issuer), {
+        method: "POST", redirect: "manual", headers: { cookie, "content-type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({ email: "a@example.test", password: "correct-password", csrf: token }),
+      });
+      assert.equal(response.status, 403);
+    }
+    assert.equal(calls, 0);
+  }, async () => { calls++; return null; });
+});

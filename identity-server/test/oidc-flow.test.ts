@@ -68,6 +68,9 @@ test("registered account completes login, consent and one-use S256 code", { skip
       assert.match(html, /Cấp quyền/);
       csrf = html.match(/name="csrf" value="([a-f0-9]+)"/)?.[1];
       assert.ok(csrf);
+      const unicodeCsrf = await post(`${location}/consent`, { allow: "yes", csrf: "é".repeat(64) });
+      assert.equal(unicodeCsrf.status, 403);
+      assert.equal(unicodeCsrf.headers.get("location"), null);
       response = await post(`${location}/consent`, { allow: "yes", csrf });
       assert.equal(response.status, 303);
       response = await request(new URL(response.headers.get("location")!, issuer));

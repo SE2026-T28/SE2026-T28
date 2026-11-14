@@ -112,11 +112,8 @@ export function createApp(config: AppConfig, authenticateUser?: AuthenticateUser
       });
     }
 
-    // Không ghi request body, password hoặc passwordHash vào log.
-    console.error(
-      "Unhandled request error",
-      error instanceof Error ? error.message : "unknown",
-    );
+    // Error messages from dependencies may contain credentials or request data.
+    console.error("Unhandled request error");
 
     return res.status(500).json({
       error: {

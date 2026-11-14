@@ -33,16 +33,16 @@ function page(title: string, body: string): string {
 }
 
 function newForm(uid: string) {
-  for (const [key, entry] of forms) if (entry.expires < Date.now()) forms.delete(key);
+  for (const [key, entry] of forms) if (entry.expires <= Date.now() && !entry.processing) forms.delete(key);
   const existing = forms.get(uid);
-  if (existing) return existing;
+  if (existing && existing.expires > Date.now()) return existing;
   const form = { token: randomBytes(32).toString("hex"), attempts: 0, expires: Date.now() + FORM_TTL_MS, processing: false };
   forms.set(uid, form);
   return form;
 }
 
 function validToken(actual: unknown, expected: string): boolean {
-  if (typeof actual !== "string" || actual.length !== expected.length) return false;
+  if (typeof actual !== "string" || !/^[a-f0-9]{64}$/.test(actual)) return false;
   return timingSafeEqual(Buffer.from(actual), Buffer.from(expected));
 }
 
@@ -54,6 +54,7 @@ export function interactionRouter(provider: Provider, authenticateUser?: Authent
   const router = Router();
   const rateKey = randomBytes(32);
   const failures = new Map<string, { count: number; expires: number }>();
+  const pending = new Map<string, number>();
 
   function emailKey(email: string): string {
     return `email:${createHmac("sha256", rateKey).update(email).digest("hex")}`;
@@ -77,6 +78,13 @@ export function interactionRouter(provider: Provider, authenticateUser?: Authent
     }
     const count = attemptCount(key);
     failures.set(key, { count: count + 1, expires: Date.now() + RATE_WINDOW_MS });
+  }
+
+  function reserve(key: string): void { pending.set(key, (pending.get(key) ?? 0) + 1); }
+  function release(key: string): void {
+    const remaining = (pending.get(key) ?? 1) - 1;
+    if (remaining) pending.set(key, remaining);
+    else pending.delete(key);
   }
 
   async function details(req: Request, res: Response) {
@@ -115,15 +123,21 @@ export function interactionRouter(provider: Provider, authenticateUser?: Authent
       const normalizedEmail = normalizeEmail(email);
       const identity = emailKey(normalizedEmail ?? email.trim().toLowerCase());
       const ip = `ip:${req.ip ?? req.socket.remoteAddress ?? "unknown"}`;
-      if (attemptCount(identity) >= MAX_EMAIL_FAILURES || attemptCount(ip) >= MAX_IP_FAILURES) {
+      if (attemptCount(identity) + (pending.get(identity) ?? 0) >= MAX_EMAIL_FAILURES
+        || attemptCount(ip) + (pending.get(ip) ?? 0) >= MAX_IP_FAILURES) {
         return res.status(429).type("html").send(page("Đăng nhập", "<p>Đã vượt quá số lần thử. Vui lòng thử lại sau.</p>"));
       }
       // Claim synchronously before the asynchronous password check: only one
       // request may attempt to finish this interaction at a time.
       form.processing = true;
       form.attempts++;
+      reserve(identity);
+      reserve(ip);
       try {
         const user = await authenticateUser(email, password);
+        // A GET may have replaced an expired form while Authentication was pending.
+        // The old request must never complete that interaction or consume its new form.
+        if (forms.get(interaction.uid) !== form || form.expires <= Date.now()) return res.sendStatus(403);
         if (!user) {
           recordFailure(identity);
           recordFailure(ip);
@@ -133,9 +147,14 @@ export function interactionRouter(provider: Provider, authenticateUser?: Authent
         if (forms.get(interaction.uid) === form) forms.delete(interaction.uid);
         return await provider.interactionFinished(req, res, { login: { accountId: user.id } }, { mergeWithLastSubmission: false });
       } finally {
+        release(identity);
+        release(ip);
         // Bad credentials or a backend error may be retried while the form is
         // valid. Successful login consumes the form before finishing OIDC.
-        if (forms.get(interaction.uid) === form) form.processing = false;
+        if (forms.get(interaction.uid) === form) {
+          if (form.expires <= Date.now()) forms.delete(interaction.uid);
+          else form.processing = false;
+        }
       }
     } catch (error) { handleInteractionError(error, res, next); }
   });

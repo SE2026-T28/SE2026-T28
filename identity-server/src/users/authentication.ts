@@ -8,6 +8,10 @@ export { normalizeEmail } from "./email.js";
 /** Public account data accepted by the OIDC Provider. */
 export type AccountForProvider = Pick<User, "id" | "email">;
 
+// Fixed Argon2id hash for the unknown-account path. The input is deliberately
+// unrelated to any account; both paths perform password verification.
+const DUMMY_PASSWORD_HASH = "$argon2id$v=19$m=65536,p=4,t=3$eHg0TwhjRRjrN94M/voz6g$MzjC0qgHIVbnN69V3/IMlEyo23FCNPMtnQjM4jtDo2I";
+
 /** Look up a user by stable UUID and expose only public account fields. */
 export async function findUserById(
   id: string,
@@ -76,13 +80,9 @@ export async function authenticateUser(
     },
   });
 
-  if (!user) {
-    return null;
-  }
-
   try {
-    const passwordMatches = await argon2.verify(user.passwordHash, password);
-    if (!passwordMatches) {
+    const passwordMatches = await argon2.verify(user?.passwordHash ?? DUMMY_PASSWORD_HASH, password);
+    if (!user || !passwordMatches) {
       return null;
     }
   } catch {

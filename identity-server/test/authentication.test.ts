@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
+import argon2 from "argon2";
 import { randomUUID } from "node:crypto";
-import { after, before, test } from "node:test";
+import { after, before, mock, test } from "node:test";
 import {
   authenticateUser,
   findUserByEmail,
@@ -81,15 +82,24 @@ test("authenticateUser trả account { id, email } khi mật khẩu chính xác"
 test("authenticateUser trả null khi mật khẩu sai", async () => {
   const email = `a2-test-${randomUUID()}@example.com`;
   await register(email, "M2-Test-Password-123!");
-
-  assert.equal(await authenticateUser(email, "Wrong-Password-123!"), null);
+  const verify = mock.method(argon2, "verify");
+  try {
+    assert.equal(await authenticateUser(email, "Wrong-Password-123!"), null);
+    assert.equal(verify.mock.callCount(), 1);
+    assert.match(String(verify.mock.calls[0]?.arguments[0]), /^\$argon2id\$/);
+  } finally { verify.mock.restore(); }
 });
 
 test("authenticateUser trả null khi email không tồn tại", async () => {
+  const verify = mock.method(argon2, "verify");
+  try {
   assert.equal(
     await authenticateUser(`missing-${randomUUID()}@example.com`, "M2-Test-Password-123!"),
     null,
   );
+  assert.equal(verify.mock.callCount(), 1);
+  assert.match(String(verify.mock.calls[0]?.arguments[0]), /^\$argon2id\$/);
+  } finally { verify.mock.restore(); }
 });
 
 test("authenticateUser trả null khi email sai định dạng hoặc mật khẩu ngoài policy", async () => {
