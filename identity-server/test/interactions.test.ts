@@ -163,3 +163,98 @@ test("completed login interaction rejects replay of its CSRF token", async () =>
     assert.equal(authentications, 1);
   }, async () => { authentications++; return { id: "11111111-1111-4111-8111-111111111111", email: "a@example.test" }; });
 });
+
+test("simultaneous login submissions claim one interaction and allow retry after bad credentials", async () => {
+  let authenticateCalls = 0;
+  let releaseFirst!: () => void;
+  let firstEntered!: () => void;
+  const firstPending = new Promise<void>(resolve => { releaseFirst = resolve; });
+  const entered = new Promise<void>(resolve => { firstEntered = resolve; });
+  await serve(async issuer => {
+    const start = await fetch(authUrl(issuer), { redirect: "manual" });
+    const location = start.headers.get("location")!;
+    const cookie = start.headers.getSetCookie().map(value => value.split(";")[0]).join("; ");
+    const html = await (await fetch(new URL(location, issuer), { headers: { cookie } })).text();
+    const csrf = html.match(/name="csrf" value="([a-f0-9]+)"/)?.[1];
+    assert.ok(csrf);
+    const submit = () => fetch(new URL(`${location}/login`, issuer), {
+      method: "POST", redirect: "manual",
+      headers: { cookie, "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ email: "a@example.test", password: "wrong-password", csrf }),
+    });
+
+    const first = submit();
+    await entered;
+    const concurrent = await submit();
+    releaseFirst();
+    const firstResponse = await first;
+    assert.equal(concurrent.status, 409);
+    assert.equal(firstResponse.status, 401);
+    assert.equal(authenticateCalls, 1);
+    assert.equal((await submit()).status, 401);
+    assert.equal(authenticateCalls, 2);
+  }, async () => {
+    authenticateCalls++;
+    if (authenticateCalls === 1) { firstEntered(); await firstPending; }
+    return null;
+  });
+});
+
+test("simultaneous successful login submissions finish an interaction at most once", async () => {
+  let authenticateCalls = 0;
+  let releaseFirst!: () => void;
+  let firstEntered!: () => void;
+  const firstPending = new Promise<void>(resolve => { releaseFirst = resolve; });
+  const entered = new Promise<void>(resolve => { firstEntered = resolve; });
+  await serve(async issuer => {
+    const start = await fetch(authUrl(issuer), { redirect: "manual" });
+    const location = start.headers.get("location")!;
+    const cookie = start.headers.getSetCookie().map(value => value.split(";")[0]).join("; ");
+    const html = await (await fetch(new URL(location, issuer), { headers: { cookie } })).text();
+    const csrf = html.match(/name="csrf" value="([a-f0-9]+)"/)?.[1];
+    assert.ok(csrf);
+    const submit = () => fetch(new URL(`${location}/login`, issuer), {
+      method: "POST", redirect: "manual",
+      headers: { cookie, "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ email: "a@example.test", password: "correct-password", csrf }),
+    });
+    const first = submit();
+    await entered;
+    const concurrent = await submit();
+    releaseFirst();
+    assert.equal(concurrent.status, 409);
+    assert.equal((await first).status, 303);
+    assert.equal(authenticateCalls, 1);
+    assert.notEqual((await submit()).status, 303);
+    assert.equal(authenticateCalls, 1);
+  }, async () => {
+    authenticateCalls++;
+    firstEntered();
+    await firstPending;
+    return { id: "11111111-1111-4111-8111-111111111111", email: "a@example.test" };
+  });
+});
+
+test("authentication backend error releases the interaction for a later retry", async () => {
+  let authenticateCalls = 0;
+  await serve(async issuer => {
+    const start = await fetch(authUrl(issuer), { redirect: "manual" });
+    const location = start.headers.get("location")!;
+    const cookie = start.headers.getSetCookie().map(value => value.split(";")[0]).join("; ");
+    const html = await (await fetch(new URL(location, issuer), { headers: { cookie } })).text();
+    const csrf = html.match(/name="csrf" value="([a-f0-9]+)"/)?.[1];
+    assert.ok(csrf);
+    const submit = () => fetch(new URL(`${location}/login`, issuer), {
+      method: "POST", redirect: "manual",
+      headers: { cookie, "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ email: "a@example.test", password: "correct-password", csrf }),
+    });
+    assert.equal((await submit()).status, 500);
+    assert.equal((await submit()).status, 401);
+    assert.equal(authenticateCalls, 2);
+  }, async () => {
+    authenticateCalls++;
+    if (authenticateCalls === 1) throw new Error("injected authentication failure");
+    return null;
+  });
+});
