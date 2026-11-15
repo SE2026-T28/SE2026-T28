@@ -1,3 +1,22 @@
+# S3 — Bằng chứng kiểm thử
+
+## M2 — Hồ sơ nghiệm thu
+
+Ngày 15/11/2026. CI sau merge PR #21 chạy trên `c853682279b378994dc499c4adb8b9ffef213abe`; 4/4 job PASS (`applications`, `backend`, `frontend`, `secrets`). Ma trận ghi rõ nguồn từng ca. [PR #21](https://github.com/SE2026-T28/SE2026-T28/pull/21) · [CI trên main](https://github.com/SE2026-T28/SE2026-T28/actions/runs/43724540568).
+
+| ID / nguồn | Môi trường và lệnh | Expected | Actual / trạng thái |
+| --- | --- | --- | --- |
+| [B] Backend, M2-00, 01 (giao thức/sub), 02a/b, 03–06, 10 | Ubuntu CI, Node 24.22.0, oidc-provider 9.12.2, Docker PostgreSQL 17.11 cô lập. Trong `identity-server`: `npm ci`, `npm run test:isolated -- --driver=docker`. | Build và suite đạt; migrate trên DB thuộc harness; login/consent và lượt đổi code đầu thành công; replay bị từ chối; guards, fixtures và headers đạt; cleanup sạch. | **PASS** 65/65; DB safety 7/7; hai lượt fixture song song 11/11 mỗi lượt; headers 2/2 và smoke PASS. Không còn user fixture; session harness đã thu hồi và instance đã dừng. [Job backend](https://github.com/SE2026-T28/SE2026-T28/actions/runs/43724540568/job/132843553100). |
+| M2-04a [B], verifier sai | Cùng job backend; giao dịch S256 riêng | HTTP 400 `invalid_grant`, không access/ID/refresh token. Đổi lại chính code đó bằng verifier gốc, cùng client và redirect, phải trả 200 có token. | **PASS**. Âm tính `status=400 oauthError=invalid_grant tokenPresent=false`; đối chứng `status=200 tokenPresent=true`. |
+| M2-04b [B], verifier thiếu | Cùng job backend; giao dịch S256 mới, request bỏ hẳn `code_verifier` | HTTP 400 `invalid_grant` theo provider 9.12.2, không access/ID/refresh token. Cùng code đổi được với verifier gốc. | **PASS**. Âm tính `status=400 oauthError=invalid_grant tokenPresent=false`; đối chứng `status=200 tokenPresent=true`. |
+| [F] Frontend, M2-01, 07–09 | Ubuntu CI, Node 24.22.0. Trong `client-demo`: `npm ci`, `npm test`, `npm run build`. | Callback và dashboard chỉ tin ID Token đã xác minh; fixture từ chối state/nonce/token lỗi, dọn trạng thái không tin cậy, kiểm reload. | **PASS** 76/76 và build PASS. Ca âm tính token dùng fixture; biến thể issuer sai khi reload **NOT VERIFIED** riêng. [CI trên main](https://github.com/SE2026-T28/SE2026-T28/actions/runs/43724540568). |
+| [E] Browser E2E PR #18 | Provider `e3c7065a1a2603bb4f7b32154612cd0201e89c00` + client `264be626f731f4d0e786ba306a680fb10fdf8d10`. Tree tích hợp `e20a7d5918522e701f6565ac88706caccf7dfa67` trùng tree commit `286bfd126c7f34f435cad181f82eb16472c78b75`. Chromium headless 158.0.8127.18, Playwright 1.65.0, PostgreSQL 17.11; log PR không ghi lệnh gọi harness đầy đủ. | Browser thật hoàn tất login/consent, kiểm ID Token và dashboard, reload/logout/ca lỗi theo bảng PR #18. | **PASS 13/13** theo log nhóm. Happy path đổi code một lần, sub là UUID, URL sạch, RS256 có kid, không vi phạm CSP. Consent denial không gọi token endpoint; callback replay bị client từ chối; replay tại Provider trả 400 `invalid_grant`, không token; POST login song song trả 303/409. **Snapshot trước PR #21**; không chạy lại trên `c853682`. [Log Browser E2E](https://github.com/SE2026-T28/SE2026-T28/pull/18#issuecomment-6892477147). |
+| M2-11 — code hết TTL khi chưa dùng | Chưa chạy | 400 `invalid_grant`, không token sau TTL. | **NOT RUN**. Ca bổ sung, ngoài gate M2. |
+
+Đối chứng M2-04a/b dùng chính code của request âm tính để loại trừ lỗi giả do code đã hết hạn, bị consume hoặc không hợp lệ. M2 đã có bằng chứng cho luồng chính và các nhóm ca lỗi bắt buộc. Giới hạn còn lại gồm session/Grant in-memory, local logout và chưa có lần chạy Browser E2E mới sau PR #21. Persistence, refresh/revoke, RP-initiated logout, MFA mock, Protected API và audit đầy đủ thuộc M3.
+
+## Lịch sử kiểm thử S3
+
 # Latest review-fix evidence - 2026-11-10, Asia/Saigon
 
 ## Final cleanup fixes - latest validation
