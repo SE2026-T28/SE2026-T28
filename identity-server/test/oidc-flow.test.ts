@@ -4,7 +4,7 @@ import { test } from "node:test";
 import { createIntegrationTestContext } from "./helpers.js";
 import { authenticateUser } from "../src/users/authentication.js";
 
-test("registered account completes login, consent and one-use S256 code", async () => {
+test("registered account completes login, consent and one-use S256 code", async (t) => {
   const context = await createIntegrationTestContext(authenticateUser);
   try {
     const issuer = context.baseUrl;
@@ -106,6 +106,84 @@ test("registered account completes login, consent and one-use S256 code", async 
     assert.ok(secondCode);
     const wrongVerifier = await token(secondCode, "x".repeat(43));
     assert.notEqual(wrongVerifier.status, 200);
+
+    const issuedCodes = new Set([code, secondCode]);
+    for (const [id, omitVerifier] of [["M2-04a", false], ["M2-04b", true]] as const) {
+      await t.test(id, async () => {
+        const freshVerifier = randomBytes(32).toString("base64url");
+        const freshChallenge = createHash("sha256").update(freshVerifier).digest("base64url");
+        const freshState = randomBytes(16).toString("base64url");
+        const authorization = new URL(auth);
+        authorization.searchParams.set("code_challenge", freshChallenge);
+        authorization.searchParams.set("state", freshState);
+        authorization.searchParams.set("nonce", randomBytes(16).toString("base64url"));
+
+        let nextResponse = await request(authorization);
+        let freshCode: string | null = null;
+        for (let redirects = 0; redirects < 10; redirects++) {
+          assert.equal(nextResponse.status, 303);
+          const next = nextResponse.headers.get("location");
+          assert.ok(next, "Expected a redirect");
+          const destination = new URL(next, issuer);
+          if (destination.origin !== issuer) {
+            assert.ok(destination.origin + destination.pathname === redirectUri, "Unexpected callback");
+            assert.ok(destination.searchParams.get("state") === freshState, "Callback state mismatch");
+            assert.ok(!destination.searchParams.has("error"), "Authorization returned an error");
+            freshCode = destination.searchParams.get("code");
+            break;
+          }
+          nextResponse = await request(destination);
+        }
+        assert.ok(freshCode && !issuedCodes.has(freshCode), "Expected a fresh authorization code");
+        issuedCodes.add(freshCode);
+
+        const params = new URLSearchParams({
+          grant_type: "authorization_code", client_id: clientId, code: freshCode, redirect_uri: redirectUri,
+        });
+        if (!omitVerifier) {
+          const incorrectVerifier = (freshVerifier[0] === "A" ? "B" : "A") + freshVerifier.slice(1);
+          params.set("code_verifier", incorrectVerifier);
+        }
+        const exchange = () => fetch(`${issuer}/token`, {
+          method: "POST",
+          redirect: "manual",
+          headers: { "content-type": "application/x-www-form-urlencoded", origin: "http://localhost:5173" },
+          body: params,
+        });
+        const rejected = await exchange();
+        const body: unknown = await rejected.json().catch(() => null);
+        const fields = body && typeof body === "object" ? body as Record<string, unknown> : {};
+        const error = fields.error;
+        const oauthError = error === "invalid_grant" || error === "invalid_request"
+          ? error : error === undefined ? "missing" : "unexpected";
+        const tokenPresent = ["access_token", "id_token", "refresh_token"].some(key => Object.hasOwn(fields, key));
+        t.diagnostic(`${id}: status=${rejected.status} oauthError=${oauthError} tokenPresent=${tokenPresent}`);
+        assert.equal(rejected.status, 400);
+        // oidc-provider 9.12.2 routes both missing and mismatched verifiers for
+        // a PKCE-bound code through checkPKCE and returns InvalidGrant.
+        assert.equal(oauthError, "invalid_grant");
+        assert.equal(tokenPresent, false);
+
+        // PKCE is checked before the Provider consumes the code. Change only the verifier.
+        params.set("code_verifier", freshVerifier);
+        const accepted = await exchange();
+        const acceptedBody: unknown = await accepted.json().catch(() => null);
+        const tokens = acceptedBody && typeof acceptedBody === "object"
+          ? acceptedBody as Record<string, unknown> : {};
+        const hasAccessToken = typeof tokens.access_token === "string" && tokens.access_token.length > 0;
+        const hasIdToken = typeof tokens.id_token === "string" && tokens.id_token.length > 0;
+        const acceptedTokenPresent = ["access_token", "id_token", "refresh_token"]
+          .some(key => Object.hasOwn(tokens, key));
+        t.diagnostic(`${id} positive: status=${accepted.status} tokenPresent=${acceptedTokenPresent}`);
+        assert.equal(accepted.status, 200);
+        assert.ok(hasAccessToken && hasIdToken, "Expected access and ID tokens");
+        assert.ok(typeof tokens.token_type === "string" && tokens.token_type.toLowerCase() === "bearer",
+          "Expected Bearer token type");
+        assert.ok(typeof tokens.expires_in === "number" && Number.isFinite(tokens.expires_in) && tokens.expires_in > 0,
+          "Expected a positive token lifetime");
+        assert.ok(!Object.hasOwn(tokens, "error"), "Successful token response must not contain an OAuth error");
+      });
+    }
   } finally {
     await context.close();
   }
