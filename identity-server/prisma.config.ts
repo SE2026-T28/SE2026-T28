@@ -1,12 +1,13 @@
 import "dotenv/config";
-import { defineConfig, env } from "prisma/config";
+import { defineConfig } from "prisma/config";
+import { configDatasource, lockedSchema, lockedMigrations } from "./scripts/prisma-policy.mjs";
 
 export default defineConfig({
-  schema: "prisma/schema.prisma",
+  schema: lockedSchema,
   migrations: {
-    path: "prisma/migrations",
+    path: lockedMigrations,
   },
   datasource: {
-    url: env("DATABASE_URL"),
+    url: configDatasource(process.argv.slice(2)),
   },
 });

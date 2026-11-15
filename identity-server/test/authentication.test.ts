@@ -13,18 +13,18 @@ let context: Awaited<ReturnType<typeof createIntegrationTestContext>> | undefine
 
 async function register(email: string, password: string): Promise<{ id: string; email: string }> {
   assert.ok(context, "Integration test server is not running");
-  const response = await fetch(`${context.baseUrl}/api/users/register`, {
+  const response = await context.fixtures.track(() => fetch(`${context!.baseUrl}/api/users/register`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email, password }),
-  });
+  }));
   assert.equal(response.status, 201);
   const data = await response.json() as { user: { id: string; email: string } };
   return data.user;
 }
 
 before(async () => {
-  context = await createIntegrationTestContext("a2-test-");
+  context = await createIntegrationTestContext();
 });
 
 after(async () => {
@@ -32,7 +32,8 @@ after(async () => {
 });
 
 test("tra cứu user thành công bằng ID và chỉ trả dữ liệu công khai", async () => {
-  const email = `a2-test-${randomUUID()}@example.com`;
+  assert.ok(context);
+  const email = context.fixtures.email();
   const password = "M2-Test-Password-123!";
   const created = await register(email, password);
 
@@ -44,7 +45,8 @@ test("tra cứu user thành công bằng ID và chỉ trả dữ liệu công kh
 });
 
 test("tra cứu user thành công bằng email đã trim và chuẩn hóa chữ thường", async () => {
-  const email = `a2-test-${randomUUID()}@example.com`;
+  assert.ok(context);
+  const email = context.fixtures.email();
   await register(email, "M2-Test-Password-123!");
 
   const account = await findUserByEmail(`  ${email.toUpperCase()}  `);
@@ -67,7 +69,8 @@ test("trả null khi tra cứu email không tồn tại hoặc sai định dạn
 });
 
 test("authenticateUser trả account { id, email } khi mật khẩu chính xác", async () => {
-  const email = `a2-test-${randomUUID()}@example.com`;
+  assert.ok(context);
+  const email = context.fixtures.email();
   const password = "M2-Test-Password-123!";
   const created = await register(email, password);
 
@@ -80,7 +83,8 @@ test("authenticateUser trả account { id, email } khi mật khẩu chính xác"
 });
 
 test("authenticateUser trả null khi mật khẩu sai", async () => {
-  const email = `a2-test-${randomUUID()}@example.com`;
+  assert.ok(context);
+  const email = context.fixtures.email();
   await register(email, "M2-Test-Password-123!");
   const verify = mock.method(argon2, "verify");
   try {

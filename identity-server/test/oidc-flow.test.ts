@@ -1,46 +1,33 @@
 import assert from "node:assert/strict";
 import { createHash, randomBytes } from "node:crypto";
-import { once } from "node:events";
-import { createServer } from "node:net";
-import type { AddressInfo } from "node:net";
 import { test } from "node:test";
-import { createApp } from "../src/app.js";
-import { disconnectPrisma, getPrisma } from "../src/db/prisma.js";
+import { createIntegrationTestContext } from "./helpers.js";
 import { authenticateUser } from "../src/users/authentication.js";
 
-test("registered account completes login, consent and one-use S256 code", { skip: !process.env.DATABASE_URL }, async () => {
-  const databaseUrl = process.env.DATABASE_URL!;
-  assert.match(decodeURIComponent(new URL(databaseUrl).pathname), /(?:^|_)test$/i);
-  const prisma = getPrisma();
-  const email = `o2-test-${randomBytes(6).toString("hex")}@example.test`;
-  const password = "correct-test-password";
-  let userId: string | undefined;
-  const probe = createServer().listen(0, "127.0.0.1");
-  await once(probe, "listening");
-  const port = (probe.address() as AddressInfo).port;
-  probe.close(); await once(probe, "close");
-  const issuer = `http://localhost:${port}`;
-  const redirectUri = "http://localhost:5173/callback";
-  const clientId = "app04-react-demo";
-  const server = createApp({ port, issuer, clientId, redirectUri, postLogoutRedirectUri: "http://localhost:5173/", scopes: ["openid", "profile", "email"], corsOrigin: "http://localhost:5173" }, authenticateUser).listen(port);
-  const jar = new Map<string, string>();
-  const request = async (url: string | URL, init: RequestInit = {}) => {
-    const response = await fetch(url, { ...init, redirect: "manual", headers: { ...init.headers, cookie: [...jar].map(([k, v]) => `${k}=${v}`).join("; ") } });
-    for (const header of response.headers.getSetCookie()) {
-      const pair = header.split(";")[0];
-      const index = pair.indexOf("=");
-      if (index > 0) jar.set(pair.slice(0, index), pair.slice(index + 1));
-    }
-    return response;
-  };
-  const verifier = randomBytes(32).toString("base64url");
-  const challenge = createHash("sha256").update(verifier).digest("base64url");
+test("registered account completes login, consent and one-use S256 code", async () => {
+  const context = await createIntegrationTestContext(authenticateUser);
   try {
-    await once(server, "listening");
-    const registered = await fetch(`${issuer}/api/users/register`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email, password }) });
+    const issuer = context.baseUrl;
+    const redirectUri = "http://localhost:5173/callback";
+    const clientId = "app04-react-demo";
+    const email = context.fixtures.email();
+    const password = "correct-test-password";
+    const jar = new Map<string, string>();
+    const request = async (url: string | URL, init: RequestInit = {}) => {
+      const response = await fetch(url, { ...init, redirect: "manual", headers: { ...init.headers, cookie: [...jar].map(([k, v]) => `${k}=${v}`).join("; ") } });
+      for (const header of response.headers.getSetCookie()) {
+        const pair = header.split(";")[0];
+        const index = pair.indexOf("=");
+        if (index > 0) jar.set(pair.slice(0, index), pair.slice(index + 1));
+      }
+      return response;
+    };
+    const verifier = randomBytes(32).toString("base64url");
+    const challenge = createHash("sha256").update(verifier).digest("base64url");
+    const registered = await context.fixtures.track(() => fetch(`${issuer}/api/users/register`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email, password }) }));
     assert.equal(registered.status, 201);
     const registration = await registered.json() as { user: { id: string; email: string } };
-    userId = registration.user.id;
+    const userId = registration.user.id;
     const auth = new URL(`${issuer}/auth`);
     for (const [key, value] of Object.entries({ client_id: clientId, response_type: "code", redirect_uri: redirectUri, scope: "openid email", state: "flow-state", nonce: "flow-nonce", code_challenge: challenge, code_challenge_method: "S256" })) auth.searchParams.set(key, value);
     let response = await request(auth);
@@ -120,8 +107,6 @@ test("registered account completes login, consent and one-use S256 code", { skip
     const wrongVerifier = await token(secondCode, "x".repeat(43));
     assert.notEqual(wrongVerifier.status, 200);
   } finally {
-    server.close(); await once(server, "close");
-    if (userId) await prisma.user.delete({ where: { id: userId } });
-    await disconnectPrisma();
+    await context.close();
   }
 });

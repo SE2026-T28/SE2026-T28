@@ -32,22 +32,6 @@ jobs:
     needs: applications
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    services:
-      postgres:
-        image: postgres:17.11
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: app04_test
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U postgres -d app04_test"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
-    env:
-      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/app04_test?schema=public
     defaults:
       run:
         working-directory: identity-server
@@ -59,12 +43,9 @@ jobs:
           cache: npm
           cache-dependency-path: identity-server/package-lock.json
       - run: npm ci
-      - run: npm run db:generate
-      - run: npm run db:deploy
-      - run: npm test
+      - name: Owned PostgreSQL, identity verification, migration and all backend tests
+        run: npm run test:isolated -- --driver=docker
       - run: npm audit --audit-level=high
-      - name: Test header checker and running server
-        run: npm run test:headers
   frontend:
     needs: applications
     if: needs.applications.outputs.frontend == 'true'

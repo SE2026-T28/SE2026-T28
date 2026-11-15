@@ -1,31 +1,23 @@
 import assert from "node:assert/strict";
-import { randomUUID } from "node:crypto";
 import { after, before, test } from "node:test";
 import argon2 from "argon2";
 import { getPrisma } from "../src/db/prisma.js";
 import { createIntegrationTestContext } from "./helpers.js";
 
-let context: Awaited<ReturnType<typeof createIntegrationTestContext>> | undefined;
+let context: Awaited<ReturnType<typeof createIntegrationTestContext>>;
+before(async () => { context = await createIntegrationTestContext(); });
+after(async () => { await context?.close(); });
 
 async function register(email: string, password: string): Promise<Response> {
-  assert.ok(context, "Integration test server is not running");
-  return fetch(`${context.baseUrl}/api/users/register`, {
+  return context.fixtures.track(() => fetch(`${context.baseUrl}/api/users/register`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email, password }),
-  });
+  }));
 }
 
-before(async () => {
-  context = await createIntegrationTestContext("a1-test-");
-});
-
-after(async () => {
-  await context?.close();
-});
-
 test("đăng ký thành công, lưu Argon2id và không trả password hash", async () => {
-  const email = `a1-test-${randomUUID()}@example.com`;
+  const email = context.fixtures.email();
   const password = "A1-Test-Password-123!";
 
   const response = await register(email, password);
@@ -52,7 +44,7 @@ test("đăng ký thành công, lưu Argon2id và không trả password hash", as
 });
 
 test("từ chối email trùng, không phân biệt chữ hoa/thường", async () => {
-  const email = `a1-test-${randomUUID()}@example.com`;
+  const email = context.fixtures.email();
   const password = "A1-Test-Password-123!";
 
   const first = await register(email, password);
@@ -74,7 +66,7 @@ test("từ chối email sai định dạng", async () => {
 });
 
 test("từ chối mật khẩu ngắn hơn 8 ký tự", async () => {
-  const email = `a1-test-${randomUUID()}@example.com`;
+  const email = context.fixtures.email();
   const response = await register(email, "123");
   const data = await response.json() as { error: { code: string } };
 
@@ -83,7 +75,7 @@ test("từ chối mật khẩu ngắn hơn 8 ký tự", async () => {
 });
 
 test("hai request đồng thời cùng email chỉ tạo một người dùng", async () => {
-  const email = `a1-test-${randomUUID()}@example.com`;
+  const email = context.fixtures.email();
   const password = "A1-Test-Password-123!";
 
   const responses = await Promise.all([
@@ -101,7 +93,6 @@ test("hai request đồng thời cùng email chỉ tạo một người dùng", 
 });
 
 test("Registration CORS chỉ cho phép origin của React demo", async () => {
-  assert.ok(context);
   const allowed = await fetch(`${context.baseUrl}/api/users/register`, {
     method: "OPTIONS",
     headers: {

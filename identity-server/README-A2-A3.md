@@ -52,16 +52,15 @@ Form hiện dùng field `csrf`, không phải `_csrf`. Interaction router cần 
 - `test/registration.test.ts`: A1 Registration.
 - `test/authentication.test.ts`: A2 lookup UUID/email, chuẩn hóa email, verify Argon2id đúng/sai và không trả `passwordHash`.
 - `test/login-page.test.ts`: HTML form, field `csrf`, URL/HTML escaping và thông báo lỗi.
-- `test/helpers.ts`: chỉ chạy integration test trên database có tên kết thúc bằng `_test`; mỗi suite dùng email prefix riêng.
+- `test/helpers.ts`: xác minh PostgreSQL do harness tạo và chỉ dọn email fixture thuộc scope.
 
-Chạy trong `identity-server` sau khi áp migration vào database test riêng:
+Chạy trong `identity-server` để harness tự tạo database test riêng, áp migration và chạy toàn bộ suite:
 
 ```bash
-npm run db:deploy
-npm test
+npm run test:isolated -- --driver=docker
 ```
 
-Dùng `DATABASE_URL` trỏ `app04_test` khi test; development dùng `app04`. Không commit `.env`, dữ liệu thật, mật khẩu hoặc hash.
+Trên Windows có PostgreSQL 17.11, có thể dùng `--driver=native`. Harness tự cấp URL cho `app04_test`. Không commit `.env`, dữ liệu thật, mật khẩu hoặc hash.
 
 ## Ranh giới nghiệm thu
 
