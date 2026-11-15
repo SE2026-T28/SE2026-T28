@@ -69,7 +69,7 @@ Express chỉ làm lớp HTTP cho các route ứng dụng và tích hợp provid
 | Thành phần | Lựa chọn | Ghi chú |
 | --- | --- | --- |
 | Identity Server | Node.js, TypeScript, Express, `oidc-provider` | Xác nhận phiên bản và API tương thích trước khi cài |
-| Demo client | React, Vite, TypeScript, thư viện OIDC client phù hợp | Đã chọn `oidc-client-ts` (ghim 3.5.0) |
+| Demo client | React, Vite, TypeScript, thư viện OIDC client phù hợp | Đã chọn `oidc-client-ts` (ghim 3.5.0) cho luồng OIDC và `jose` (ghim 6.2.15) để xác minh ID Token |
 | Dữ liệu | PostgreSQL, Prisma | Prisma cho dữ liệu ứng dụng; adapter của provider tuân theo API thư viện |
 | Mật khẩu | Argon2id qua thư viện được duy trì | Không tự triển khai thuật toán băm |
 | Kiểm thử | Vitest hoặc Jest; Playwright cho E2E nếu cần | Ưu tiên protocol/integration tests có ý nghĩa |
@@ -86,7 +86,7 @@ Docker Compose **không thuộc phạm vi mặc định**. Ưu tiên chạy loca
 5. Identity Server kiểm tra mật khẩu, thực hiện MFA mock, hoàn tất interaction và consent nếu chính sách yêu cầu.
 6. Provider chuyển trình duyệt về `redirect_uri` đã đăng ký cùng Authorization Code và `state`.
 7. Client đối chiếu `state`, đổi code tại Token Endpoint bằng `code_verifier` và nhận token.
-8. Client xác minh ID Token bằng thư viện OIDC: `iss`, `aud`, thời hạn và `nonce` khi đã gửi; chỉ sau đó mới coi người dùng đã đăng nhập. Lưu ý: `oidc-client-ts` chỉ giải mã ID Token chứ không xác minh chữ ký; cách xác minh chữ ký sẽ được quyết định ở C2.
+8. Client xác minh ID Token bằng `jose` (`jwtVerify` + `createRemoteJWKSet` với `jwks_uri` lấy từ Discovery): chữ ký, `iss` = authority, `aud` = `client_id` (khi `aud` có nhiều giá trị thì bắt buộc có `azp` bằng `client_id`; nếu có `azp` thì phải bằng `client_id`), `exp`/`iat` với độ lệch đồng hồ 30 giây, `sub` bắt buộc và `nonce` bắt buộc khớp giá trị đã gửi; thuật toán ký chỉ được phép nằm trong RS256/PS256/ES256 giao với `id_token_signing_alg_values_supported` của Discovery (mặc định RS256). Chỉ sau đó mới coi người dùng đã đăng nhập. Lưu ý: `oidc-client-ts` chỉ giải mã ID Token, không xác minh chữ ký, và lưu User trước khi `jose` xác minh; vì vậy mọi lỗi xác minh đều xóa User, và khi tải lại trang token đã lưu được xác minh lại trước khi tin.
 9. Client dùng Access Token để gọi Protected Resource API demo; API kiểm tra token theo cơ chế đã chốt rồi mới trả dữ liệu. Refresh Token chỉ được cấp nếu chính sách client/provider cho phép.
 
 `state`, `nonce` và PKCE có mục đích khác nhau; không dùng một giá trị thay cho cả ba. PKCE S256 là yêu cầu cho public client theo [OAuth 2.0 Security Best Current Practice](https://www.rfc-editor.org/rfc/rfc9700.html). Quy tắc kiểm tra ID Token dựa trên [OpenID Connect Core](https://openid.net/specs/openid-connect-core-1_0-18.html).
@@ -204,7 +204,7 @@ SE2026-T28/
 │   │   ├── resource-api/   # API demo được bảo vệ
 │   │   └── config/
 │   └── prisma/
-├── client-demo/            # cấu trúc đích; scaffold hiện tại phẳng: src/auth.ts, config.ts, App.tsx
+├── client-demo/            # cấu trúc đích; scaffold hiện tại phẳng: src/auth.ts, config.ts, session.ts, verify.ts, App.tsx
 │   └── src/
 │       ├── auth/
 │       ├── pages/
@@ -221,7 +221,7 @@ SE2026-T28/
 └── README.md
 ```
 
-Thư mục chỉ được tạo khi có code/tài liệu tương ứng. Repo hiện đã có scaffold `identity-server/` (O1: provider + Discovery) và `client-demo/` (C1: login PKCE); `database/` và `tests/` vẫn là thư mục khung. Các quyết định về interaction, DB, token và resource API chưa có triển khai để xác nhận.
+Thư mục chỉ được tạo khi có code/tài liệu tương ứng. Repo hiện đã có scaffold `identity-server/` (O1: provider + Discovery) và `client-demo/` (C1: login PKCE; C2: callback và xác minh ID Token); `database/` và `tests/` vẫn là thư mục khung. Các quyết định về interaction, DB, token và resource API chưa có triển khai để xác nhận.
 
 ## 12. Quyết định cần nhóm chốt trước khi code đáng kể
 
