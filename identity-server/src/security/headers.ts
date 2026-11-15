@@ -2,7 +2,7 @@ import helmet from 'helmet';
 
 // Mount before all application routes and provider.callback().
 // The issuer is trusted server configuration, never a request Host header.
-export function securityHeaders(issuer: string) {
+export function securityHeaders(issuer: string, clientOrigin?: string) {
   const url = new URL(issuer);
   const secure = url.protocol === 'https:';
   if (!secure && !(url.protocol === 'http:' && ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname))) {
@@ -19,7 +19,9 @@ export function securityHeaders(issuer: string) {
         objectSrc: ["'none'"],
         baseUri: ["'self'"],
         frameAncestors: ["'none'"],
-        formAction: ["'self'"],
+        // Browsers apply form-action to the complete redirect chain after
+        // login/consent POST, including the final authorization callback.
+        formAction: clientOrigin ? ["'self'", clientOrigin] : ["'self'"],
         upgradeInsecureRequests: secure ? [] : null,
       },
     },

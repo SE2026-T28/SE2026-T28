@@ -21,7 +21,7 @@ export async function withUserFixtures<T>(run: (fixtures: ReturnType<typeof crea
   finally { await fixtures.cleanup(); }
 }
 
-export async function createIntegrationTestContext() {
+export async function createIntegrationTestContext(authenticateUser?: Parameters<typeof createApp>[1]) {
   assertManagedDatabase(); // before Prisma connects, server starts, or any cleanup runs
   const fixtures = createUserFixtures();
   let server: Server | undefined;
@@ -43,7 +43,7 @@ export async function createIntegrationTestContext() {
     server = createApp({
       port, issuer, clientId: "app04-react-demo", redirectUri: "http://localhost:5173/callback",
       postLogoutRedirectUri: "http://localhost:5173/", scopes: ["openid", "profile", "email"], corsOrigin: "http://localhost:5173",
-    }).listen(port);
+    }, authenticateUser).listen(port);
     await once(server, "listening");
     return { baseUrl: issuer, fixtures, close };
   } catch (error) {
