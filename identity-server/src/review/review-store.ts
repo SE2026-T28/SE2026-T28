@@ -1,5 +1,5 @@
-// In-memory store for ReviewItem (BT3 VT-111). SKELETON: signatures are the
-// contract used by tests; every body throws until the implementation step.
+// In-memory store for ReviewItem (BT3 VT-111). Signatures are the
+// contract used by tests.
 // Invariant: compareAndSet checks version and writes in ONE synchronous
 // section (no await between check and write). With a real DB this becomes
 // `UPDATE ... WHERE version = $1`.
@@ -50,8 +50,14 @@ export type ReserveResult =
   | { kind: "mismatch" }
   | { kind: "replay"; response: StoredResponse };
 
+interface IdemRecord {
+  fingerprint: string;
+  response?: StoredResponse; // undefined while in flight
+}
+
 export class ReviewStore {
   private readonly items = new Map<string, ReviewItem>();
+  private readonly idem = new Map<string, IdemRecord>();
 
   /** Insert a deep copy of `item` (test fixture / bootstrap). */
   seed(item: ReviewItem): void {
@@ -70,22 +76,39 @@ export class ReviewStore {
    * Otherwise `mutate` receives a deep-copy draft; the store commits the draft
    * with version = expectedVersion + 1 and returns a copy of the new item.
    */
-  compareAndSet(_id: string, _expectedVersion: number, _mutate: (draft: ReviewItem) => void): CasResult {
-    throw new Error("not implemented");
+  compareAndSet(id: string, expectedVersion: number, mutate: (draft: ReviewItem) => void): CasResult {
+    // No await anywhere in this method: check and write form one synchronous
+    // section, so JS's single thread guarantees only one caller per version wins.
+    const current = this.items.get(id);
+    if (current === undefined) return { ok: false, reason: "not-found" };
+    if (expectedVersion !== current.version) return { ok: false, reason: "conflict" };
+    const draft = structuredClone(current);
+    mutate(draft);
+    draft.version = expectedVersion + 1;
+    this.items.set(id, draft);
+    return { ok: true, item: structuredClone(draft) };
   }
 
   /** Synchronously reserve (actorId, key) for `fingerprint`. */
-  reserve(_actorId: string, _key: string, _fingerprint: string): ReserveResult {
-    throw new Error("not implemented");
+  reserve(actorId: string, key: string, fingerprint: string): ReserveResult {
+    const k = JSON.stringify([actorId, key]);
+    const rec = this.idem.get(k);
+    if (rec === undefined) {
+      this.idem.set(k, { fingerprint });
+      return { kind: "new" };
+    }
+    if (rec.fingerprint !== fingerprint) return { kind: "mismatch" };
+    return rec.response === undefined ? { kind: "in-flight" } : { kind: "replay", response: structuredClone(rec.response) };
   }
 
   /** Mark (actorId, key) completed and store the response for replay. */
-  complete(_actorId: string, _key: string, _response: StoredResponse): void {
-    throw new Error("not implemented");
+  complete(actorId: string, key: string, response: StoredResponse): void {
+    const rec = this.idem.get(JSON.stringify([actorId, key]));
+    if (rec !== undefined) rec.response = structuredClone(response);
   }
 
   /** Drop an in-flight reservation (failure path); a later reserve returns `new`. */
-  release(_actorId: string, _key: string): void {
-    throw new Error("not implemented");
+  release(actorId: string, key: string): void {
+    this.idem.delete(JSON.stringify([actorId, key]));
   }
 }

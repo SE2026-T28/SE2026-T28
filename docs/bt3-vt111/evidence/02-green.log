@@ -1,0 +1,67 @@
+# 02-green.log
+date: 2026-11-16T14:59:16Z
+node: v24.22.0
+HEAD (pre-commit): 18d8929
+commands: cd identity-server && npm run build && node --test dist/test/review-*.test.js ; baseline node --test dist/test/{discovery,harness-cleanup,interactions,login-page,m2-authorization-boundary,security-headers}.test.js ; 3 repeats
+
+## review tests
+✔ TC-01 admin and reviewer GET -> 200 {item} with ETag "v1" (162.9607ms)
+✔ TC-02 GET without token -> 401, guest -> 403, unknown id -> 404 (52.1005ms)
+✔ TC-03 reviewer PATCH -> 403, data unchanged (58.2616ms)
+✔ TC-04 admin POST decision -> 403 (separation of duties), item pending v1 (16.7063ms)
+✔ TC-05 reviewer approve/reject -> 200, decidedBy/At set, v2, data byte-identical (25.9324ms)
+✔ TC-06 status codes: 428 / 412 / 400 / 428 / 400, item never changes (32.5776ms)
+✔ TC-07 admin PATCH current -> 200 ETag v2; approve on already-decided item -> 409 (23.6021ms)
+✔ TC-08 two concurrent decisions on v1 -> one 200, one 412, version 2, winner recorded (205.0439ms)
+✔ TC-09 sixty concurrent decisions on v1 -> 1x200, 59x412, version 2, single decidedBy (224.8117ms)
+✔ TC-10 two concurrent admin PATCH on v1 -> one 200, one 412, data equals winner payload exactly (37.612ms)
+✔ TC-11 concurrent admin PATCH vs reviewer approve on v1 -> exactly one wins, never approved + new data (15.9667ms)
+✔ TC-12 replay same key + same fingerprint -> identical status/body, applied once, decidedAt unchanged (19.6418ms)
+✔ TC-13 same key, different fingerprint (other decision / other item) -> 422, state unchanged (20.0155ms)
+✔ TC-14 ten concurrent requests with same key -> applied once, in-flight ones 409, then replay 200 (43.0884ms)
+✔ TC-15 beforeCommit throws -> 500 without detail, item unchanged, key released, retry same key -> 200 (20.4825ms)
+✔ TC-16 compareAndSet: two synchronous calls with same expectedVersion -> ok then conflict, mutate once (4.6317ms)
+✔ TC-16 compareAndSet: wrong versions 0 and 2 on a v1 item -> conflict, mutate not called, item unchanged (0.9238ms)
+✔ TC-16 compareAndSet: unknown id -> not-found, mutate not called (0.3782ms)
+✔ TC-17 store returns copies: editing get()/seed input/compareAndSet result never changes the store (0.5642ms)
+✔ TC-18 idempotency: new -> in-flight -> replay, mismatch, release, keyed by actor (1.2262ms)
+ℹ tests 20
+ℹ suites 0
+ℹ pass 20
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1198.0658
+
+## baseline non-DB
+ℹ tests 35
+ℹ pass 35
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+
+## repeat 1
+ℹ tests 20
+ℹ pass 20
+ℹ fail 0
+ℹ duration_ms 1156.3786
+
+## repeat 2
+ℹ tests 20
+ℹ pass 20
+ℹ fail 0
+ℹ duration_ms 1189.351
+
+## repeat 3
+ℹ tests 20
+ℹ pass 20
+ℹ fail 0
+ℹ duration_ms 1112.754
+
+## git diff --stat (patch, src/review)
+warning: in the working copy of 'identity-server/src/review/review-store.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'identity-server/src/review/review.routes.ts', LF will be replaced by CRLF the next time Git touches it
+ identity-server/src/review/review-store.ts  |  43 ++++++++---
+ identity-server/src/review/review.routes.ts | 111 ++++++++++++++++++++++++++--
+ 2 files changed, 138 insertions(+), 16 deletions(-)
