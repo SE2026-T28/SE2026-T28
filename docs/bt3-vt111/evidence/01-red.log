@@ -1,0 +1,369 @@
+# RED log - BT3 VT-111 (test-first; skeleton router answers 501, store throws 'not implemented')
+date: 2026-11-16T14:55:23Z
+node: v24.22.0
+HEAD (baseline for this run): 1344ef62a4310fea9d5a8e8b0d486a448555e0d7
+command: cd identity-server && npm run build && node --test dist/test/review-*.test.js
+
+✖ TC-01 admin and reviewer GET -> 200 {item} with ETag "v1" (3.3016ms)
+✖ TC-02 GET without token -> 401, guest -> 403, unknown id -> 404 (0.7483ms)
+✖ TC-03 reviewer PATCH -> 403, data unchanged (0.5457ms)
+✖ TC-04 admin POST decision -> 403 (separation of duties), item pending v1 (0.6056ms)
+✖ TC-05 reviewer approve/reject -> 200, decidedBy/At set, v2, data byte-identical (0.8213ms)
+✖ TC-06 status codes: 428 / 412 / 400 / 428 / 400, item never changes (0.5545ms)
+✖ TC-07 admin PATCH current -> 200 ETag v2; approve on already-decided item -> 409 (0.6697ms)
+✖ TC-08 two concurrent decisions on v1 -> one 200, one 412, version 2, winner recorded (2.8856ms)
+✖ TC-09 sixty concurrent decisions on v1 -> 1x200, 59x412, version 2, single decidedBy (0.8785ms)
+✖ TC-10 two concurrent admin PATCH on v1 -> one 200, one 412, data equals winner payload exactly (0.6618ms)
+✖ TC-11 concurrent admin PATCH vs reviewer approve on v1 -> exactly one wins, never approved + new data (0.6376ms)
+✖ TC-12 replay same key + same fingerprint -> identical status/body, applied once, decidedAt unchanged (0.5407ms)
+✖ TC-13 same key, different fingerprint (other decision / other item) -> 422, state unchanged (0.5014ms)
+✖ TC-14 ten concurrent requests with same key -> applied once, in-flight ones 409, then replay 200 (0.8392ms)
+✖ TC-15 beforeCommit throws -> 500 without detail, item unchanged, key released, retry same key -> 200 (0.845ms)
+✖ TC-16 compareAndSet: two synchronous calls with same expectedVersion -> ok then conflict, mutate once (1.5756ms)
+✖ TC-16 compareAndSet: wrong versions 0 and 2 on a v1 item -> conflict, mutate not called, item unchanged (0.3059ms)
+✖ TC-16 compareAndSet: unknown id -> not-found, mutate not called (0.1962ms)
+✖ TC-17 store returns copies: editing get()/seed input/compareAndSet result never changes the store (0.2443ms)
+✖ TC-18 idempotency: new -> in-flight -> replay, mismatch, release, keyed by actor (0.4525ms)
+ℹ tests 20
+ℹ suites 0
+ℹ pass 0
+ℹ fail 20
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 645.8785
+
+✖ failing tests:
+
+test at dist\test\review-authz.test.js:4:1
+✖ TC-01 admin and reviewer GET -> 200 {item} with ETag "v1" (3.3016ms)
+  Error: not implemented
+      at ReviewStore.seed (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/src/review/review-store.js:9:15)
+      at startApp (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-helpers.js:38:15)
+      at TestContext.<anonymous> (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-authz.test.js:5:23)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.start (node:internal/test_runner/test:1262:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17)
+
+test at dist\test\review-authz.test.js:13:1
+✖ TC-02 GET without token -> 401, guest -> 403, unknown id -> 404 (0.7483ms)
+  Error: not implemented
+      at ReviewStore.seed (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/src/review/review-store.js:9:15)
+      at startApp (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-helpers.js:38:15)
+      at TestContext.<anonymous> (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-authz.test.js:14:23)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3)
+
+test at dist\test\review-authz.test.js:20:1
+✖ TC-03 reviewer PATCH -> 403, data unchanged (0.5457ms)
+  Error: not implemented
+      at ReviewStore.seed (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/src/review/review-store.js:9:15)
+      at startApp (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-helpers.js:38:15)
+      at TestContext.<anonymous> (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-authz.test.js:21:23)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+
+test at dist\test\review-authz.test.js:31:1
+✖ TC-04 admin POST decision -> 403 (separation of duties), item pending v1 (0.6056ms)
+  Error: not implemented
+      at ReviewStore.seed (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/src/review/review-store.js:9:15)
+      at startApp (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-helpers.js:38:15)
+      at TestContext.<anonymous> (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-authz.test.js:32:23)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+
+test at dist\test\review-authz.test.js:40:1
+✖ TC-05 reviewer approve/reject -> 200, decidedBy/At set, v2, data byte-identical (0.8213ms)
+  Error: not implemented
+      at ReviewStore.seed (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/src/review/review-store.js:9:15)
+      at startApp (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-helpers.js:38:15)
+      at TestContext.<anonymous> (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-authz.test.js:41:23)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+
+test at dist\test\review-authz.test.js:61:1
+✖ TC-06 status codes: 428 / 412 / 400 / 428 / 400, item never changes (0.5545ms)
+  Error: not implemented
+      at ReviewStore.seed (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/src/review/review-store.js:9:15)
+      at startApp (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-helpers.js:38:15)
+      at TestContext.<anonymous> (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-authz.test.js:62:23)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+
+test at dist\test\review-authz.test.js:76:1
+✖ TC-07 admin PATCH current -> 200 ETag v2; approve on already-decided item -> 409 (0.6697ms)
+  Error: not implemented
+      at ReviewStore.seed (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/src/review/review-store.js:9:15)
+      at startApp (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-helpers.js:38:15)
+      at TestContext.<anonymous> (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-authz.test.js:78:23)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+
+test at dist\test\review-concurrency.test.js:5:1
+✖ TC-08 two concurrent decisions on v1 -> one 200, one 412, version 2, winner recorded (2.8856ms)
+  Error: not implemented
+      at ReviewStore.seed (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/src/review/review-store.js:9:15)
+      at startApp (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-helpers.js:38:15)
+      at TestContext.<anonymous> (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-concurrency.test.js:7:23)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.start (node:internal/test_runner/test:1262:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17)
+
+test at dist\test\review-concurrency.test.js:22:1
+✖ TC-09 sixty concurrent decisions on v1 -> 1x200, 59x412, version 2, single decidedBy (0.8785ms)
+  Error: not implemented
+      at ReviewStore.seed (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/src/review/review-store.js:9:15)
+      at startApp (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-helpers.js:38:15)
+      at TestContext.<anonymous> (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-concurrency.test.js:24:23)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3)
+
+test at dist\test\review-concurrency.test.js:39:1
+✖ TC-10 two concurrent admin PATCH on v1 -> one 200, one 412, data equals winner payload exactly (0.6618ms)
+  Error: not implemented
+      at ReviewStore.seed (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/src/review/review-store.js:9:15)
+      at startApp (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-helpers.js:38:15)
+      at TestContext.<anonymous> (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-concurrency.test.js:41:23)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+
+test at dist\test\review-concurrency.test.js:51:1
+✖ TC-11 concurrent admin PATCH vs reviewer approve on v1 -> exactly one wins, never approved + new data (0.6376ms)
+  Error: not implemented
+      at ReviewStore.seed (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/src/review/review-store.js:9:15)
+      at startApp (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-helpers.js:38:15)
+      at TestContext.<anonymous> (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-concurrency.test.js:53:23)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+
+test at dist\test\review-concurrency.test.js:71:1
+✖ TC-12 replay same key + same fingerprint -> identical status/body, applied once, decidedAt unchanged (0.5407ms)
+  Error: not implemented
+      at ReviewStore.seed (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/src/review/review-store.js:9:15)
+      at startApp (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-helpers.js:38:15)
+      at TestContext.<anonymous> (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-concurrency.test.js:72:23)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+
+test at dist\test\review-concurrency.test.js:83:1
+✖ TC-13 same key, different fingerprint (other decision / other item) -> 422, state unchanged (0.5014ms)
+  Error: not implemented
+      at ReviewStore.seed (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/src/review/review-store.js:9:15)
+      at startApp (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-helpers.js:38:15)
+      at TestContext.<anonymous> (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-concurrency.test.js:84:23)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+
+test at dist\test\review-concurrency.test.js:98:1
+✖ TC-14 ten concurrent requests with same key -> applied once, in-flight ones 409, then replay 200 (0.8392ms)
+  Error: not implemented
+      at ReviewStore.seed (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/src/review/review-store.js:9:15)
+      at startApp (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-helpers.js:38:15)
+      at TestContext.<anonymous> (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-concurrency.test.js:102:23)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+
+test at dist\test\review-concurrency.test.js:126:1
+✖ TC-15 beforeCommit throws -> 500 without detail, item unchanged, key released, retry same key -> 200 (0.845ms)
+  Error: not implemented
+      at ReviewStore.seed (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/src/review/review-store.js:9:15)
+      at startApp (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-helpers.js:38:15)
+      at TestContext.<anonymous> (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-concurrency.test.js:128:23)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+
+test at dist\test\review-store.test.js:10:1
+✖ TC-16 compareAndSet: two synchronous calls with same expectedVersion -> ok then conflict, mutate once (1.5756ms)
+  Error: not implemented
+      at ReviewStore.seed (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/src/review/review-store.js:9:15)
+      at freshStore (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-store.test.js:7:11)
+      at TestContext.<anonymous> (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-store.test.js:11:19)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.start (node:internal/test_runner/test:1262:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17)
+
+test at dist\test\review-store.test.js:22:1
+✖ TC-16 compareAndSet: wrong versions 0 and 2 on a v1 item -> conflict, mutate not called, item unchanged (0.3059ms)
+  Error: not implemented
+      at ReviewStore.seed (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/src/review/review-store.js:9:15)
+      at freshStore (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-store.test.js:7:11)
+      at TestContext.<anonymous> (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-store.test.js:24:23)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3)
+
+test at dist\test\review-store.test.js:33:1
+✖ TC-16 compareAndSet: unknown id -> not-found, mutate not called (0.1962ms)
+  Error: not implemented
+      at ReviewStore.seed (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/src/review/review-store.js:9:15)
+      at freshStore (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-store.test.js:7:11)
+      at TestContext.<anonymous> (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-store.test.js:34:19)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+
+test at dist\test\review-store.test.js:40:1
+✖ TC-17 store returns copies: editing get()/seed input/compareAndSet result never changes the store (0.2443ms)
+  Error: not implemented
+      at ReviewStore.seed (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/src/review/review-store.js:9:15)
+      at TestContext.<anonymous> (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-store.test.js:43:11)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+
+test at dist\test\review-store.test.js:59:1
+✖ TC-18 idempotency: new -> in-flight -> replay, mismatch, release, keyed by actor (0.4525ms)
+  Error: not implemented
+      at ReviewStore.seed (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/src/review/review-store.js:9:15)
+      at freshStore (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-store.test.js:7:11)
+      at TestContext.<anonymous> (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-store.test.js:60:19)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+exit: 1
+
+## Baseline non-DB tests
+command: node --test dist/test/{discovery,harness-cleanup,interactions,login-page,m2-authorization-boundary,security-headers}.test.js
+ℹ tests 35 ℹ pass 35 ℹ fail 0 ℹ skipped 0 
+
+## Why each test is red
+Official run above: every test fails at store.seed()/store methods -> Error: not implemented (store skeleton), so the router is never reached.
+Diagnostic run (store seed/get temporarily backed by a Map, router still 501; NOT committed) proves router-level tests fail on the missing feature, not on test bugs:
+```
+✖ TC-01 admin and reviewer GET -> 200 {item} with ETag "v1" (137.6696ms)
+✖ TC-02 GET without token -> 401, guest -> 403, unknown id -> 404 (30.97ms)
+✖ TC-03 reviewer PATCH -> 403, data unchanged (62.8667ms)
+✖ TC-04 admin POST decision -> 403 (separation of duties), item pending v1 (19.7068ms)
+✖ TC-05 reviewer approve/reject -> 200, decidedBy/At set, v2, data byte-identical (17.2137ms)
+✖ TC-06 status codes: 428 / 412 / 400 / 428 / 400, item never changes (14.849ms)
+✖ TC-07 admin PATCH current -> 200 ETag v2; approve on already-decided item -> 409 (15.2552ms)
+✖ TC-08 two concurrent decisions on v1 -> one 200, one 412, version 2, winner recorded (187.4926ms)
+✖ TC-09 sixty concurrent decisions on v1 -> 1x200, 59x412, version 2, single decidedBy (193.106ms)
+✖ TC-10 two concurrent admin PATCH on v1 -> one 200, one 412, data equals winner payload exactly (48.7758ms)
+✖ TC-11 concurrent admin PATCH vs reviewer approve on v1 -> exactly one wins, never approved + new data (19.5117ms)
+✖ TC-12 replay same key + same fingerprint -> identical status/body, applied once, decidedAt unchanged (10.6595ms)
+✖ TC-13 same key, different fingerprint (other decision / other item) -> 422, state unchanged (9.8318ms)
+✖ TC-14 ten concurrent requests with same key -> applied once, in-flight ones 409, then replay 200 (11.4134ms)
+✖ TC-15 beforeCommit throws -> 500 without detail, item unchanged, key released, retry same key -> 200 (12.812ms)
+ℹ tests 15
+ℹ pass 0
+ℹ fail 15
+✖ TC-01 admin and reviewer GET -> 200 {item} with ETag "v1" (137.6696ms)
+  501 !== 200
+    actual: 501,
+✖ TC-02 GET without token -> 401, guest -> 403, unknown id -> 404 (30.97ms)
+  501 !== 401
+    actual: 501,
+✖ TC-03 reviewer PATCH -> 403, data unchanged (62.8667ms)
+  501 !== 403
+    actual: 501,
+✖ TC-04 admin POST decision -> 403 (separation of duties), item pending v1 (19.7068ms)
+  501 !== 403
+    actual: 501,
+✖ TC-05 reviewer approve/reject -> 200, decidedBy/At set, v2, data byte-identical (17.2137ms)
+  501 !== 200
+    actual: 501,
+✖ TC-06 status codes: 428 / 412 / 400 / 428 / 400, item never changes (14.849ms)
+  501 !== 428
+    actual: 501,
+✖ TC-07 admin PATCH current -> 200 ETag v2; approve on already-decided item -> 409 (15.2552ms)
+  501 !== 200
+    actual: 501,
+✖ TC-08 two concurrent decisions on v1 -> one 200, one 412, version 2, winner recorded (187.4926ms)
+    actual: [ 501, 501 ],
+✖ TC-09 sixty concurrent decisions on v1 -> 1x200, 59x412, version 2, single decidedBy (193.106ms)
+  0 !== 1
+    actual: 0,
+✖ TC-10 two concurrent admin PATCH on v1 -> one 200, one 412, data equals winner payload exactly (48.7758ms)
+    actual: [ 501, 501 ],
+✖ TC-11 concurrent admin PATCH vs reviewer approve on v1 -> exactly one wins, never approved + new data (19.5117ms)
+    actual: [ 501, 501 ],
+✖ TC-12 replay same key + same fingerprint -> identical status/body, applied once, decidedAt unchanged (10.6595ms)
+  501 !== 200
+    actual: 501,
+✖ TC-13 same key, different fingerprint (other decision / other item) -> 422, state unchanged (9.8318ms)
+  501 !== 200
+    actual: 501,
+✖ TC-14 ten concurrent requests with same key -> applied once, in-flight ones 409, then replay 200 (11.4134ms)
+  AssertionError [ERR_ASSERTION]: first request returned before reaching beforeCommit
+✖ TC-15 beforeCommit throws -> 500 without detail, item unchanged, key released, retry same key -> 200 (12.812ms)
+  501 !== 500
+    actual: 501,
+```
+
+| TC | Official red reason | Diagnostic reason (router 501) |
+|---|---|---|
+| TC-01..TC-07 | store.seed: not implemented | `501 !== <expected 200/401/403/428/409>` on first request |
+| TC-08, TC-10, TC-11 | store.seed: not implemented | statuses `[501,501]` vs `[200,412]` |
+| TC-09 | store.seed: not implemented | 0 x 200, expected 1 |
+| TC-12, TC-13 | store.seed: not implemented | `501 !== 200` on first decision |
+| TC-14 | store.seed: not implemented | first request answers 501 before reaching beforeCommit (fail-fast assert) |
+| TC-15 | store.seed: not implemented | `501 !== 500` on failing decision |
+| TC-16..TC-18 | store methods: not implemented | n/a (unit tests on store) |
