@@ -1,0 +1,34 @@
+# 08 AI review fix (R7) — TC-19 red -> green, TC-20 characterization
+date: 2026-11-16T22:11:48+07:00
+node: v24.22.0
+HEAD: 13a11e9
+commands: cd identity-server; npm run build; node --test dist/test/review-concurrency.test.js
+
+## RED (TC-19 before fix)
+> tsc -p tsconfig.json
+
+✔ TC-11 concurrent admin PATCH vs reviewer approve on v1 -> exactly one wins, never approved + new data (12.5348ms)
+✔ TC-12 replay same key + same fingerprint -> identical status/body, applied once, decidedAt unchanged (12.8011ms)
+  + actual - expected
+  + 'W/"98-39ePRVESsFf54Hy2LhPRFUh9SO8"'
+  - '"v2"'
+    actual: 'W/"98-39ePRVESsFf54Hy2LhPRFUh9SO8"',
+    expected: '"v2"',
+ℹ tests 10
+ℹ pass 9
+ℹ fail 1
+(TC-20 passed immediately on current code: characterization test, no red expected. Red run: 9 pass / 1 fail = TC-19 only.)
+
+## GREEN (after fix: StoredResponse.etag saved in complete(), restored in replay)
+
+✔ TC-19 replay restores ETag header (same ETag as the original 200) (16.1819ms)
+✔ TC-20 key released after 412 allows retry with fresh If-Match (21.2005ms)
+ℹ tests 10
+ℹ pass 10
+ℹ fail 0
+
+## Full run: review tests + baseline non-DB
+ℹ tests 57
+ℹ pass 57
+ℹ fail 0
+ℹ skipped 0

@@ -35,6 +35,8 @@ export type CasResult =
 export interface StoredResponse {
   status: number;
   body: unknown;
+  /** ETag of the original response, restored on replay. */
+  etag?: string;
 }
 
 /**

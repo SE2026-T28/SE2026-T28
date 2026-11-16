@@ -103,7 +103,10 @@ export function createReviewRouter(options: ReviewRouterOptions): Router {
       // two requests with the same key cannot both see "new", so a retry arriving
       // while the first is still in flight gets 409 instead of applying twice.
       const rsv = store.reserve(actorId, key, JSON.stringify([id, decision, ifMatch]));
-      if (rsv.kind === "replay") return send(res, rsv.response.status, rsv.response.body);
+      if (rsv.kind === "replay") {
+        if (rsv.response.etag) res.set("ETag", rsv.response.etag);
+        return send(res, rsv.response.status, rsv.response.body);
+      }
       if (rsv.kind === "mismatch") return send(res, 422, { error: "IDEMPOTENCY_KEY_REUSED" });
       if (rsv.kind === "in-flight") return send(res, 409, { error: "REQUEST_IN_FLIGHT" });
       reserved = true;
@@ -127,7 +130,7 @@ export function createReviewRouter(options: ReviewRouterOptions): Router {
       });
       if (!r.ok) return r.reason === "conflict" ? fail(412, "VERSION_CONFLICT") : fail(404, "NOT_FOUND");
       const body = { item: r.item };
-      store.complete(actorId, key, { status: 200, body });
+      store.complete(actorId, key, { status: 200, body, etag: `"v${r.item.version}"` });
       reserved = false;
       send(res, 200, body, r.item);
     } catch {

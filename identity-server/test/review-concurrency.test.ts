@@ -165,3 +165,31 @@ test("TC-15 beforeCommit throws -> 500 without detail, item unchanged, key relea
   assert.equal(retry.json.item.version, 2);
   assert.equal(app.store.get("item-1")?.status, "approved");
 });
+
+test("TC-19 replay restores ETag header (same ETag as the original 200)", async (t) => {
+  const app = await startApp(t);
+  const first = await decide(app, "reviewer-token", "approve", { ifMatch: V1, key: "k-1" });
+  assert.equal(first.status, 200);
+  assert.equal(first.headers.get("etag"), "\"v2\"");
+
+  const replay = await decide(app, "reviewer-token", "approve", { ifMatch: V1, key: "k-1" });
+  assert.equal(replay.status, 200);
+  assert.deepEqual(replay.json, first.json);
+  assert.equal(replay.headers.get("etag"), first.headers.get("etag"));
+  assert.equal(app.store.get("item-1")?.version, 2);
+});
+
+test("TC-20 key released after 412 allows retry with fresh If-Match", async (t) => {
+  const app = await startApp(t);
+  const bump = await patch(app, "admin-token", { title: "N" }, { ifMatch: V1 });
+  assert.equal(bump.status, 200); // item now v2
+
+  const stale = await decide(app, "reviewer-token", "approve", { ifMatch: V1, key: "k-1" });
+  assert.equal(stale.status, 412);
+  assert.equal(app.store.get("item-1")?.status, "pending");
+
+  const retry = await decide(app, "reviewer-token", "approve", { ifMatch: "\"v2\"", key: "k-1" });
+  assert.equal(retry.status, 200);
+  assert.equal(retry.json.item.version, 3);
+  assert.equal(retry.headers.get("etag"), "\"v3\"");
+});
