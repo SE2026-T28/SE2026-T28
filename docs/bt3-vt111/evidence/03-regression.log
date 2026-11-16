@@ -1,0 +1,348 @@
+# 03-regression.log
+date: 2026-11-16T15:05:39Z
+node: v24.22.0
+HEAD: e9b8afd7be2d0c736ffc4c60094d5b9e71e5636e
+command: cd identity-server && npm run test:isolated -- --driver=native
+
+
+> app04-identity-server@0.1.0 test:isolated
+> node scripts/run-isolated-tests.mjs --driver=native
+
+S3 harness: creating new native PostgreSQL instance.
+S3 isolation proof: control-file system_identifier, live data_directory, startup time, and app04_test match.
+
+> app04-identity-server@0.1.0 db:generate
+> node scripts/prisma-command.mjs generate
+
+Loaded Prisma config from prisma.config.ts.
+
+Prisma schema loaded from prisma\schema.prisma.
+
+✔ Generated Prisma Client (7.10.1) to .\src\generated\prisma in 590ms
+
+
+> app04-identity-server@0.1.0 test:safety
+> npm run build && node --test dist/test/database-safety.test.js
+
+
+> app04-identity-server@0.1.0 prebuild
+> node scripts/check-node.cjs
+
+
+> app04-identity-server@0.1.0 build
+> tsc -p tsconfig.json
+
+✔ DB-SAFE-01: URL policy accepts loopback app04_test but does not certify isolation (1.9962ms)
+✔ DB-SAFE-02: refuses unsafe names, hosts, overrides and production without leaking the URL (6.2021ms)
+✔ DB-SAFE-03: pre-migration command refuses unsafe configuration before database work (321.8977ms)
+✔ DB-SAFE-04: direct Prisma migrate deploy also refuses unsafe database in config (2342.6763ms)
+✔ DB-SAFE-05: controlled Prisma plans lock config and reject every target override (15.1718ms)
+✔ DB-SAFE-06: wrapper overrides and direct db push/execute fail before any engine write (5403.4514ms)
+✔ DB-SAFE-07: development workflow is explicit, local app04 only; no development connection is made (24.8468ms)
+ℹ tests 7
+ℹ suites 0
+ℹ pass 7
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 8370.2768
+
+> app04-identity-server@0.1.0 db:deploy
+> node scripts/prisma-command.mjs deploy
+
+Loaded Prisma config from prisma.config.ts.
+
+Prisma schema loaded from prisma\schema.prisma.
+Datasource "db": PostgreSQL database "app04_test", schema "public" at "127.0.0.1:58430"
+
+1 migration found in prisma/migrations
+
+Applying migration `20261022000000_create_users`
+
+The following migration(s) have been applied:
+
+migrations/
+  └─ 20261022000000_create_users/
+    └─ migration.sql
+
+All migrations have been successfully applied.
+
+> app04-identity-server@0.1.0 db:deploy
+> node scripts/prisma-command.mjs deploy
+
+Loaded Prisma config from prisma.config.ts.
+
+Prisma schema loaded from prisma\schema.prisma.
+Datasource "db": PostgreSQL database "app04_test", schema "public" at "127.0.0.1:58430"
+
+1 migration found in prisma/migrations
+
+
+No pending migrations to apply.
+
+> app04-identity-server@0.1.0 pretest
+> node scripts/check-test-database.mjs
+
+S3 managed PostgreSQL identity verified.
+
+> app04-identity-server@0.1.0 test
+> npm run build && node --test dist/test/*.test.js
+
+
+> app04-identity-server@0.1.0 prebuild
+> node scripts/check-node.cjs
+
+
+> app04-identity-server@0.1.0 build
+> tsc -p tsconfig.json
+
+oidc-provider WARNING: a quick start development-only in-memory adapter is used, you MUST change it in order to not lose all stateful provider data upon restart and to be able to share these between processes
+oidc-provider WARNING: quick start development-only signing keys are used, you are expected to provide your own in the configuration "jwks" property
+✔ tra cứu user thành công bằng ID và chỉ trả dữ liệu công khai (1759.6077ms)
+✔ tra cứu user thành công bằng email đã trim và chuẩn hóa chữ thường (620.7552ms)
+✔ trả null khi tra cứu ID không tồn tại hoặc rỗng (4.7179ms)
+✔ trả null khi tra cứu email không tồn tại hoặc sai định dạng (6.8669ms)
+✔ authenticateUser trả account { id, email } khi mật khẩu chính xác (1464.9848ms)
+✔ authenticateUser trả null khi mật khẩu sai (1767.5356ms)
+✔ authenticateUser trả null khi email không tồn tại (480.5366ms)
+✔ authenticateUser trả null khi email sai định dạng hoặc mật khẩu ngoài policy (0.901ms)
+✔ DB-SAFE-01: URL policy accepts loopback app04_test but does not certify isolation (3.0632ms)
+✔ DB-SAFE-02: refuses unsafe names, hosts, overrides and production without leaking the URL (11.3318ms)
+✔ DB-SAFE-03: pre-migration command refuses unsafe configuration before database work (705.4042ms)
+✔ DB-SAFE-04: direct Prisma migrate deploy also refuses unsafe database in config (4081.9468ms)
+✔ DB-SAFE-05: controlled Prisma plans lock config and reject every target override (50.6911ms)
+✔ DB-SAFE-06: wrapper overrides and direct db push/execute fail before any engine write (6248.8816ms)
+✔ DB-SAFE-07: development workflow is explicit, local app04 only; no development connection is made (37.6272ms)
+oidc-provider WARNING: a quick start development-only in-memory adapter is used, you MUST change it in order to not lose all stateful provider data upon restart and to be able to share these between processes
+oidc-provider WARNING: quick start development-only signing keys are used, you are expected to provide your own in the configuration "jwks" property
+✔ Discovery publishes the agreed issuer and public-client endpoints (201.0588ms)
+✔ Local configuration rejects a mismatched client origin (2.0889ms)
+✔ Production configuration is rejected while storage and keys are development-only (0.8802ms)
+oidc-provider WARNING: a quick start development-only in-memory adapter is used, you MUST change it in order to not lose all stateful provider data upon restart and to be able to share these between processes
+oidc-provider WARNING: quick start development-only signing keys are used, you are expected to provide your own in the configuration "jwks" property
+✔ FIXTURE-01: independent runs never delete each other's records; cleanup is idempotent (4441.374ms)
+✔ FIXTURE-02: finally cleans fixtures after an assertion failure following registration (1859.1995ms)
+✔ FIXTURE-03: allocation/new work cannot race with cleanup; concurrent cleanup joins one deletion (7.7404ms)
+✔ FIXTURE-04: cleanup drains a delayed registration that writes then fails, preserving another scope (2089.9833ms)
+✔ FIXTURE-05: deletion failure preserves the owned snapshot for a safe retry (1.933ms)
+✔ HARNESS-DOCKER: recover owned container after ETIMEDOUT (9.1576ms)
+✔ HARNESS-DOCKER: recover owned container after create failed after daemon allocated container (1.0373ms)
+✔ HARNESS-DOCKER: failure before creation leaves nothing to remove (0.6234ms)
+✔ HARNESS-DOCKER: reject foreign label/name/image/ID and still remove an owned candidate (1.287ms)
+✔ HARNESS-CLEANUP: unlink failures do not prevent revocation or either shutdown step (1.1961ms)
+✔ HARNESS-CLEANUP: failed invalidation/disconnect/stop still attempt removal and later steps (0.7125ms)
+oidc-provider WARNING: a quick start development-only in-memory adapter is used, you MUST change it in order to not lose all stateful provider data upon restart and to be able to share these between processes
+oidc-provider WARNING: quick start development-only signing keys are used, you are expected to provide your own in the configuration "jwks" property
+oidc-provider NOTICE: default ttl.Interaction function called, you SHOULD change it in order to define the expiration for Interaction artifacts.
+oidc-provider WARNING: a quick start development-only in-memory adapter is used, you MUST change it in order to not lose all stateful provider data upon restart and to be able to share these between processes
+oidc-provider WARNING: quick start development-only signing keys are used, you are expected to provide your own in the configuration "jwks" property
+✔ valid S256 request reaches login interaction; unavailable auth cannot create a session (315.4642ms)
+oidc-provider NOTICE: default renderError function called, you SHOULD change it in order to customize the look of the error page.
+oidc-provider WARNING: a quick start development-only in-memory adapter is used, you MUST change it in order to not lose all stateful provider data upon restart and to be able to share these between processes
+oidc-provider WARNING: quick start development-only signing keys are used, you are expected to provide your own in the configuration "jwks" property
+✔ missing PKCE, plain PKCE and wrong redirect URI are rejected (53.7762ms)
+oidc-provider WARNING: a quick start development-only in-memory adapter is used, you MUST change it in order to not lose all stateful provider data upon restart and to be able to share these between processes
+oidc-provider WARNING: quick start development-only signing keys are used, you are expected to provide your own in the configuration "jwks" property
+✔ failed login attempts are limited for an interaction even after form reload (118.3402ms)
+oidc-provider WARNING: a quick start development-only in-memory adapter is used, you MUST change it in order to not lose all stateful provider data upon restart and to be able to share these between processes
+oidc-provider WARNING: quick start development-only signing keys are used, you are expected to provide your own in the configuration "jwks" property
+✔ CSRF token from one interaction cannot be submitted with another browser cookie (53.0352ms)
+oidc-provider WARNING: a quick start development-only in-memory adapter is used, you MUST change it in order to not lose all stateful provider data upon restart and to be able to share these between processes
+oidc-provider WARNING: quick start development-only signing keys are used, you are expected to provide your own in the configuration "jwks" property
+✔ expired CSRF form token is rejected before password verification (46.2956ms)
+oidc-provider WARNING: a quick start development-only in-memory adapter is used, you MUST change it in order to not lose all stateful provider data upon restart and to be able to share these between processes
+oidc-provider WARNING: quick start development-only signing keys are used, you are expected to provide your own in the configuration "jwks" property
+✔ completed login interaction rejects replay of its CSRF token (50.29ms)
+oidc-provider WARNING: a quick start development-only in-memory adapter is used, you MUST change it in order to not lose all stateful provider data upon restart and to be able to share these between processes
+oidc-provider WARNING: quick start development-only signing keys are used, you are expected to provide your own in the configuration "jwks" property
+✔ simultaneous login submissions claim one interaction and allow retry after bad credentials (47.5914ms)
+oidc-provider WARNING: a quick start development-only in-memory adapter is used, you MUST change it in order to not lose all stateful provider data upon restart and to be able to share these between processes
+oidc-provider WARNING: quick start development-only signing keys are used, you are expected to provide your own in the configuration "jwks" property
+✔ simultaneous successful login submissions finish an interaction at most once (41.6933ms)
+Unhandled request error
+oidc-provider WARNING: a quick start development-only in-memory adapter is used, you MUST change it in order to not lose all stateful provider data upon restart and to be able to share these between processes
+oidc-provider WARNING: quick start development-only signing keys are used, you are expected to provide your own in the configuration "jwks" property
+✔ authentication backend error releases the interaction for a later retry (81.7095ms)
+oidc-provider WARNING: a quick start development-only in-memory adapter is used, you MUST change it in order to not lose all stateful provider data upon restart and to be able to share these between processes
+oidc-provider WARNING: quick start development-only signing keys are used, you are expected to provide your own in the configuration "jwks" property
+✔ concurrent interactions reserve the email limit before authentication completes (224.1026ms)
+oidc-provider WARNING: a quick start development-only in-memory adapter is used, you MUST change it in order to not lose all stateful provider data upon restart and to be able to share these between processes
+oidc-provider WARNING: quick start development-only signing keys are used, you are expected to provide your own in the configuration "jwks" property
+✔ expired in-flight claim cannot finish interaction or consume replacement form (157.102ms)
+oidc-provider WARNING: a quick start development-only in-memory adapter is used, you MUST change it in order to not lose all stateful provider data upon restart and to be able to share these between processes
+oidc-provider WARNING: quick start development-only signing keys are used, you are expected to provide your own in the configuration "jwks" property
+✔ expired failed login still counts against email and IP limits (419.9284ms)
+oidc-provider WARNING: a quick start development-only in-memory adapter is used, you MUST change it in order to not lose all stateful provider data upon restart and to be able to share these between processes
+oidc-provider WARNING: quick start development-only signing keys are used, you are expected to provide your own in the configuration "jwks" property
+✔ IP limit counts concurrent attempts with different email addresses (935.9615ms)
+✔ Unicode CSRF values are rejected without reaching Authentication (106.9133ms)
+✔ ISOLATION-01: managed instance is live; missing, wrong-capability, wrong-target and wrong-system-id proofs fail (1761.5225ms)
+✔ login page post tới interaction login và gửi CSRF token cùng credentials (3.5695ms)
+✔ login page URL-encode uid and HTML-escape CSRF token (2.6431ms)
+✔ login page displays expired interaction error without exposing credentials (0.5047ms)
+✔ login page requires interaction uid and a CSRF token (1.3189ms)
+oidc-provider WARNING: a quick start development-only in-memory adapter is used, you MUST change it in order to not lose all stateful provider data upon restart and to be able to share these between processes
+oidc-provider WARNING: quick start development-only signing keys are used, you are expected to provide your own in the configuration "jwks" property
+✔ O1 rejects an authorization request without PKCE (212.3682ms)
+✔ O1 rejects a PKCE method other than S256 (14.8656ms)
+oidc-provider NOTICE: default renderError function called, you SHOULD change it in order to customize the look of the error page.
+✔ O1 does not redirect to an unregistered callback (14.6457ms)
+oidc-provider NOTICE: default ttl.Interaction function called, you SHOULD change it in order to define the expiration for Interaction artifacts.
+✔ O1 accepts a valid S256 request up to interaction, without issuing a code (20.6473ms)
+oidc-provider WARNING: a quick start development-only in-memory adapter is used, you MUST change it in order to not lose all stateful provider data upon restart and to be able to share these between processes
+oidc-provider WARNING: quick start development-only signing keys are used, you are expected to provide your own in the configuration "jwks" property
+oidc-provider NOTICE: default ttl.Interaction function called, you SHOULD change it in order to define the expiration for Interaction artifacts.
+oidc-provider NOTICE: default ttl.Session function called, you SHOULD change it in order to define the expiration for Session artifacts.
+oidc-provider NOTICE: default ttl.Grant function called, you SHOULD change it in order to define the expiration for Grant artifacts.
+oidc-provider NOTICE: default ttl.AccessToken function called, you SHOULD change it in order to define the expiration for AccessToken artifacts.
+oidc-provider NOTICE: default ttl.IdToken function called, you SHOULD change it in order to define the expiration for IdToken artifacts.
+▶ registered account completes login, consent and one-use S256 code
+  ✔ M2-04a (233.4712ms)
+  ✔ M2-04b (178.1227ms)
+✔ registered account completes login, consent and one-use S256 code (6142.1465ms)
+ℹ M2-04a: status=400 oauthError=invalid_grant tokenPresent=false
+ℹ M2-04a positive: status=200 tokenPresent=true
+ℹ M2-04b: status=400 oauthError=invalid_grant tokenPresent=false
+ℹ M2-04b positive: status=200 tokenPresent=true
+oidc-provider WARNING: a quick start development-only in-memory adapter is used, you MUST change it in order to not lose all stateful provider data upon restart and to be able to share these between processes
+oidc-provider WARNING: quick start development-only signing keys are used, you are expected to provide your own in the configuration "jwks" property
+✔ đăng ký thành công, lưu Argon2id và không trả password hash (2374.1524ms)
+✔ từ chối email trùng, không phân biệt chữ hoa/thường (1722.8191ms)
+✔ từ chối email sai định dạng (48.7655ms)
+✔ từ chối mật khẩu ngắn hơn 8 ký tự (42.1954ms)
+✔ hai request đồng thời cùng email chỉ tạo một người dùng (1329.8799ms)
+✔ Registration CORS chỉ cho phép origin của React demo (27.0273ms)
+✔ TC-01 admin and reviewer GET -> 200 {item} with ETag "v1" (211.7036ms)
+✔ TC-02 GET without token -> 401, guest -> 403, unknown id -> 404 (58.7352ms)
+✔ TC-03 reviewer PATCH -> 403, data unchanged (94.1013ms)
+✔ TC-04 admin POST decision -> 403 (separation of duties), item pending v1 (19.0971ms)
+✔ TC-05 reviewer approve/reject -> 200, decidedBy/At set, v2, data byte-identical (23.7481ms)
+✔ TC-06 status codes: 428 / 412 / 400 / 428 / 400, item never changes (36.2342ms)
+✔ TC-07 admin PATCH current -> 200 ETag v2; approve on already-decided item -> 409 (26.1964ms)
+✔ TC-08 two concurrent decisions on v1 -> one 200, one 412, version 2, winner recorded (290.3855ms)
+✔ TC-09 sixty concurrent decisions on v1 -> 1x200, 59x412, version 2, single decidedBy (313.1797ms)
+✔ TC-10 two concurrent admin PATCH on v1 -> one 200, one 412, data equals winner payload exactly (60.7296ms)
+✔ TC-11 concurrent admin PATCH vs reviewer approve on v1 -> exactly one wins, never approved + new data (21.1459ms)
+✔ TC-12 replay same key + same fingerprint -> identical status/body, applied once, decidedAt unchanged (20.3334ms)
+✔ TC-13 same key, different fingerprint (other decision / other item) -> 422, state unchanged (29.8772ms)
+✔ TC-14 ten concurrent requests with same key -> applied once, in-flight ones 409, then replay 200 (56.9615ms)
+✔ TC-15 beforeCommit throws -> 500 without detail, item unchanged, key released, retry same key -> 200 (26.1745ms)
+✔ TC-16 compareAndSet: two synchronous calls with same expectedVersion -> ok then conflict, mutate once (4.3362ms)
+✔ TC-16 compareAndSet: wrong versions 0 and 2 on a v1 item -> conflict, mutate not called, item unchanged (0.6356ms)
+✔ TC-16 compareAndSet: unknown id -> not-found, mutate not called (0.4421ms)
+✔ TC-17 store returns copies: editing get()/seed input/compareAndSet result never changes the store (0.666ms)
+✔ TC-18 idempotency: new -> in-flight -> replay, mismatch, release, keyed by actor (1.8416ms)
+✔ Security headers for configured issuer http://localhost:3000 (105.7653ms)
+oidc-provider WARNING: a quick start development-only in-memory adapter is used, you MUST change it in order to not lose all stateful provider data upon restart and to be able to share these between processes
+oidc-provider WARNING: quick start development-only signing keys are used, you are expected to provide your own in the configuration "jwks" property
+✔ Security headers for configured issuer https://identity.example.test (29.2361ms)
+✔ HTTP headers configuration rejects non-local issuers (2.0094ms)
+✔ Integrated registration and health routes keep S4 headers and A1 CORS (64.6344ms)
+ℹ tests 85
+ℹ suites 0
+ℹ pass 85
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 12042.1553
+S3 harness: running two fixture/registration suites concurrently.
+oidc-provider WARNING: a quick start development-only in-memory adapter is used, you MUST change it in order to not lose all stateful provider data upon restart and to be able to share these between processes
+oidc-provider WARNING: quick start development-only signing keys are used, you are expected to provide your own in the configuration "jwks" property
+oidc-provider WARNING: a quick start development-only in-memory adapter is used, you MUST change it in order to not lose all stateful provider data upon restart and to be able to share these between processes
+oidc-provider WARNING: quick start development-only signing keys are used, you are expected to provide your own in the configuration "jwks" property
+✔ FIXTURE-01: independent runs never delete each other's records; cleanup is idempotent (3489.597ms)
+✔ FIXTURE-01: independent runs never delete each other's records; cleanup is idempotent (3521.6608ms)
+✔ FIXTURE-02: finally cleans fixtures after an assertion failure following registration (1139.9731ms)
+✔ FIXTURE-03: allocation/new work cannot race with cleanup; concurrent cleanup joins one deletion (3.8639ms)
+✔ FIXTURE-02: finally cleans fixtures after an assertion failure following registration (1149.5445ms)
+✔ FIXTURE-03: allocation/new work cannot race with cleanup; concurrent cleanup joins one deletion (3.937ms)
+✔ FIXTURE-04: cleanup drains a delayed registration that writes then fails, preserving another scope (2215.5163ms)
+✔ FIXTURE-05: deletion failure preserves the owned snapshot for a safe retry (1.6793ms)
+✔ FIXTURE-04: cleanup drains a delayed registration that writes then fails, preserving another scope (2206.4028ms)
+✔ FIXTURE-05: deletion failure preserves the owned snapshot for a safe retry (1.9566ms)
+oidc-provider WARNING: a quick start development-only in-memory adapter is used, you MUST change it in order to not lose all stateful provider data upon restart and to be able to share these between processes
+oidc-provider WARNING: quick start development-only signing keys are used, you are expected to provide your own in the configuration "jwks" property
+✔ đăng ký thành công, lưu Argon2id và không trả password hash (1400.1184ms)
+✔ từ chối email trùng, không phân biệt chữ hoa/thường (1061.7386ms)
+✔ từ chối email sai định dạng (21.7772ms)
+✔ từ chối mật khẩu ngắn hơn 8 ký tự (19.464ms)
+✔ hai request đồng thời cùng email chỉ tạo một người dùng (793.9603ms)
+✔ Registration CORS chỉ cho phép origin của React demo (21.8032ms)
+ℹ tests 11
+ℹ suites 0
+ℹ pass 11
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 9811.9213
+oidc-provider WARNING: a quick start development-only in-memory adapter is used, you MUST change it in order to not lose all stateful provider data upon restart and to be able to share these between processes
+oidc-provider WARNING: quick start development-only signing keys are used, you are expected to provide your own in the configuration "jwks" property
+✔ đăng ký thành công, lưu Argon2id và không trả password hash (1678.3623ms)
+✔ từ chối email trùng, không phân biệt chữ hoa/thường (798.3085ms)
+✔ từ chối email sai định dạng (18.1652ms)
+✔ từ chối mật khẩu ngắn hơn 8 ký tự (15.696ms)
+✔ hai request đồng thời cùng email chỉ tạo một người dùng (883.8782ms)
+✔ Registration CORS chỉ cho phép origin của React demo (30.9508ms)
+ℹ tests 11
+ℹ suites 0
+ℹ pass 11
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 9824.5453
+
+> app04-identity-server@0.1.0 pretest:headers
+> node scripts/check-test-database.mjs
+
+S3 managed PostgreSQL identity verified.
+
+> app04-identity-server@0.1.0 test:headers
+> node --test ../tests/security/check-headers.test.mjs && node ../tests/security/server-headers.mjs
+
+✔ Header checker accepts expected headers and rejects missing/unsafe headers (1561.0015ms)
+✔ Header checker requires an explicit URL (136.4165ms)
+ℹ tests 2
+ℹ suites 0
+ℹ pass 2
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1972.1093
+Header checks passed. This does not validate full CSP compatibility or browser flows.
+S3 harness: remaining users=0; all managed stages PASS.
+S3 harness: session revoked; owned instance stopped; runtime files remain Git-ignored.
+exit=0
+
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 10789.4115
+
+> app04-identity-server@0.1.0 pretest:headers
+> node scripts/check-test-database.mjs
+
+S3 managed PostgreSQL identity verified.
+
+> app04-identity-server@0.1.0 test:headers
+> node --test ../tests/security/check-headers.test.mjs && node ../tests/security/server-headers.mjs
+
+✔ Header checker accepts expected headers and rejects missing/unsafe headers (1400.5387ms)
+✔ Header checker requires an explicit URL (117.686ms)
+ℹ tests 2
+ℹ suites 0
+ℹ pass 2
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1799.4487
+Header checks passed. This does not validate full CSP compatibility or browser flows.
+S3 harness: remaining users=0; all managed stages PASS.
+S3 harness: session revoked; owned instance stopped; runtime files remain Git-ignored.
+exit=0
