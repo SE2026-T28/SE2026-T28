@@ -1,0 +1,547 @@
+BT3 VT-111 mutation experiment: remove idempotency / concurrency guard
+Date: 2026-11-16T15:23:40Z   node: v24.22.0
+Submission HEAD: 0bc8b066d9d99e7883b043b651ae8b791702174d
+Mutant commits (TEMPORARY, on branch mutation/bt3-vt111-no-guard, never pushed): M1=29be588 M2=9bfa6be M3=db8f6bf M1b=d8d6747
+Method per mutant: git reset --hard SUBMISSION_HEAD; apply edit; commit; cd identity-server && npm run build && node --test dist/test/review-*.test.js
+Killed = at least 1 failing test. 22 review tests total (TC-16 name is used by 2 tests).
+
+SUMMARY
+mutant | failed/total | killing TCs | verdict
+M1  CAS check removed in compareAndSet | 7/22 | TC-06 TC-08 TC-09 TC-10 TC-11 TC-16(x2) | KILLED
+M2  reserve() always {kind:new}        | 4/22 | TC-12 TC-13 TC-14 TC-18 TC-19          | KILLED
+M3  M1+M2 (assignment mutation)        | 11/22 | TC-06 TC-08 TC-09 TC-10 TC-11 TC-12 TC-13 TC-14 TC-16(x2) TC-18 TC-19 | KILLED
+M1b M1 + route pre-check 412 removed   | 8/22 | TC-06 TC-08 TC-09 TC-10 TC-11 TC-16(x2) TC-20 | KILLED
+No survivor: step 'strengthen suite' not needed.
+Notes: M1b shows race tests TC-08/09/10/11 still catch a missing CAS without the route pre-check (the pre-check is not what protects them); TC-20 additionally fails because the pre-check 412 path is what releases the key.
+M3 load harness: contended invariant BROKEN (see below).
+
+=================== M1 ===================
+Diff (git diff SUBMISSION_HEAD):
+diff --git a/identity-server/src/review/review-store.ts b/identity-server/src/review/review-store.ts
+index 86dbbad..8481794 100644
+--- a/identity-server/src/review/review-store.ts
++++ b/identity-server/src/review/review-store.ts
+@@ -83,7 +83,7 @@ export class ReviewStore {
+     // section, so JS's single thread guarantees only one caller per version wins.
+     const current = this.items.get(id);
+     if (current === undefined) return { ok: false, reason: "not-found" };
+-    if (expectedVersion !== current.version) return { ok: false, reason: "conflict" };
++    // MUTANT: concurrency guard removed
+     const draft = structuredClone(current);
+     mutate(draft);
+     draft.version = expectedVersion + 1;
+Command: cd identity-server && npm run build && node --test dist/test/review-*.test.js
+Counts: ℹ tests 22 ℹ pass 15 ℹ fail 7 
+Failing tests (with first assertion line):
+✖ TC-06 status codes: 428 / 412 / 400 / 428 / 400, item never changes
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  200 !== 412
+✖ TC-08 two concurrent decisions on v1 -> one 200, one 412, version 2, winner recorded
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+✖ TC-09 sixty concurrent decisions on v1 -> 1x200, 59x412, version 2, single decidedBy
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  60 !== 1
+✖ TC-10 two concurrent admin PATCH on v1 -> one 200, one 412, data equals winner payload exactly
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+✖ TC-11 concurrent admin PATCH vs reviewer approve on v1 -> exactly one wins, never approved + new data
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+✖ TC-16 compareAndSet: two synchronous calls with same expectedVersion -> ok then conflict, mutate once
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+✖ TC-16 compareAndSet: wrong versions 0 and 2 on a v1 item -> conflict, mutate not called, item unchanged
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+
+=================== M2 ===================
+Diff (git diff SUBMISSION_HEAD):
+diff --git a/identity-server/src/review/review-store.ts b/identity-server/src/review/review-store.ts
+index 86dbbad..da25462 100644
+--- a/identity-server/src/review/review-store.ts
++++ b/identity-server/src/review/review-store.ts
+@@ -95,6 +95,11 @@ export class ReviewStore {
+   reserve(actorId: string, key: string, fingerprint: string): ReserveResult {
+     const k = JSON.stringify([actorId, key]);
+     const rec = this.idem.get(k);
++    // MUTANT: idempotency guard removed (always new)
++    if (Date.now() > 0) {
++      this.idem.set(k, { fingerprint });
++      return { kind: "new" };
++    }
+     if (rec === undefined) {
+       this.idem.set(k, { fingerprint });
+       return { kind: "new" };
+Command: cd identity-server && npm run build && node --test dist/test/review-*.test.js
+Counts: ℹ tests 22 ℹ pass 17 ℹ fail 4 
+Failing tests (with first assertion line):
+✖ TC-12 replay same key + same fingerprint -> identical status/body, applied once, decidedAt unchanged
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  412 !== 200
+✖ TC-13 same key, different fingerprint (other decision / other item) -> 422, state unchanged
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  412 !== 422
+✖ TC-14 ten concurrent requests with same key -> applied once, in-flight ones 409, then replay 200
+✖ TC-19 replay restores ETag header (same ETag as the original 200)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  412 !== 200
+✖ TC-18 idempotency: new -> in-flight -> replay, mismatch, release, keyed by actor
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+
+=================== M3 ===================
+Diff (git diff SUBMISSION_HEAD):
+diff --git a/identity-server/src/review/review-store.ts b/identity-server/src/review/review-store.ts
+index 86dbbad..a5f3f30 100644
+--- a/identity-server/src/review/review-store.ts
++++ b/identity-server/src/review/review-store.ts
+@@ -83,7 +83,7 @@ export class ReviewStore {
+     // section, so JS's single thread guarantees only one caller per version wins.
+     const current = this.items.get(id);
+     if (current === undefined) return { ok: false, reason: "not-found" };
+-    if (expectedVersion !== current.version) return { ok: false, reason: "conflict" };
++    // MUTANT: concurrency guard removed
+     const draft = structuredClone(current);
+     mutate(draft);
+     draft.version = expectedVersion + 1;
+@@ -95,6 +95,11 @@ export class ReviewStore {
+   reserve(actorId: string, key: string, fingerprint: string): ReserveResult {
+     const k = JSON.stringify([actorId, key]);
+     const rec = this.idem.get(k);
++    // MUTANT: idempotency guard removed (always new)
++    if (Date.now() > 0) {
++      this.idem.set(k, { fingerprint });
++      return { kind: "new" };
++    }
+     if (rec === undefined) {
+       this.idem.set(k, { fingerprint });
+       return { kind: "new" };
+Command: cd identity-server && npm run build && node --test dist/test/review-*.test.js
+Counts: ℹ tests 22 ℹ pass 10 ℹ fail 11 
+Failing tests (with first assertion line):
+✖ TC-06 status codes: 428 / 412 / 400 / 428 / 400, item never changes
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  200 !== 412
+✖ TC-08 two concurrent decisions on v1 -> one 200, one 412, version 2, winner recorded
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+✖ TC-09 sixty concurrent decisions on v1 -> 1x200, 59x412, version 2, single decidedBy
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  60 !== 1
+✖ TC-10 two concurrent admin PATCH on v1 -> one 200, one 412, data equals winner payload exactly
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+✖ TC-11 concurrent admin PATCH vs reviewer approve on v1 -> exactly one wins, never approved + new data
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+✖ TC-12 replay same key + same fingerprint -> identical status/body, applied once, decidedAt unchanged
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  412 !== 200
+✖ TC-13 same key, different fingerprint (other decision / other item) -> 422, state unchanged
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  412 !== 422
+✖ TC-14 ten concurrent requests with same key -> applied once, in-flight ones 409, then replay 200
+✖ TC-19 replay restores ETag header (same ETag as the original 200)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  412 !== 200
+✖ TC-16 compareAndSet: two synchronous calls with same expectedVersion -> ok then conflict, mutate once
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+✖ TC-16 compareAndSet: wrong versions 0 and 2 on a v1 item -> conflict, mutate not called, item unchanged
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+✖ TC-18 idempotency: new -> in-flight -> replay, mismatch, release, keyed by actor
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+
+=================== M1b ===================
+Diff (git diff SUBMISSION_HEAD):
+diff --git a/identity-server/src/review/review-store.ts b/identity-server/src/review/review-store.ts
+index 86dbbad..8481794 100644
+--- a/identity-server/src/review/review-store.ts
++++ b/identity-server/src/review/review-store.ts
+@@ -83,7 +83,7 @@ export class ReviewStore {
+     // section, so JS's single thread guarantees only one caller per version wins.
+     const current = this.items.get(id);
+     if (current === undefined) return { ok: false, reason: "not-found" };
+-    if (expectedVersion !== current.version) return { ok: false, reason: "conflict" };
++    // MUTANT: concurrency guard removed
+     const draft = structuredClone(current);
+     mutate(draft);
+     draft.version = expectedVersion + 1;
+diff --git a/identity-server/src/review/review.routes.ts b/identity-server/src/review/review.routes.ts
+index 95f5476..6f01d0b 100644
+--- a/identity-server/src/review/review.routes.ts
++++ b/identity-server/src/review/review.routes.ts
+@@ -118,7 +118,7 @@ export function createReviewRouter(options: ReviewRouterOptions): Router {
+       };
+       const current = store.get(id);
+       if (!current) return fail(404, "NOT_FOUND");
+-      if (current.version !== parseVersion(ifMatch)) return fail(412, "VERSION_CONFLICT");
++      // MUTANT: route pre-check removed
+       if (current.status !== "pending") return fail(409, "ALREADY_DECIDED");
+ 
+       await beforeCommit?.({ itemId: id, kind: "decision", actorId });
+Command: cd identity-server && npm run build && node --test dist/test/review-*.test.js
+Counts: ℹ tests 22 ℹ pass 14 ℹ fail 8 
+Failing tests (with first assertion line):
+✖ TC-06 status codes: 428 / 412 / 400 / 428 / 400, item never changes
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  200 !== 412
+✖ TC-08 two concurrent decisions on v1 -> one 200, one 412, version 2, winner recorded
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+✖ TC-09 sixty concurrent decisions on v1 -> 1x200, 59x412, version 2, single decidedBy
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  60 !== 1
+✖ TC-10 two concurrent admin PATCH on v1 -> one 200, one 412, data equals winner payload exactly
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+✖ TC-11 concurrent admin PATCH vs reviewer approve on v1 -> exactly one wins, never approved + new data
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+✖ TC-20 key released after 412 allows retry with fresh If-Match
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  200 !== 412
+✖ TC-16 compareAndSet: two synchronous calls with same expectedVersion -> ok then conflict, mutate once
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+✖ TC-16 compareAndSet: wrong versions 0 and 2 on a v1 item -> conflict, mutate not called, item unchanged
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+
+=================== M3 full raw output of test run ===================
+✔ TC-01 admin and reviewer GET -> 200 {item} with ETag "v1" (164.95ms)
+✔ TC-02 GET without token -> 401, guest -> 403, unknown id -> 404 (36.9389ms)
+✔ TC-03 reviewer PATCH -> 403, data unchanged (54.6411ms)
+✔ TC-04 admin POST decision -> 403 (separation of duties), item pending v1 (15.5521ms)
+✔ TC-05 reviewer approve/reject -> 200, decidedBy/At set, v2, data byte-identical (20.8194ms)
+✖ TC-06 status codes: 428 / 412 / 400 / 428 / 400, item never changes (21.7513ms)
+✔ TC-07 admin PATCH current -> 200 ETag v2; approve on already-decided item -> 409 (29.6047ms)
+✖ TC-08 two concurrent decisions on v1 -> one 200, one 412, version 2, winner recorded (199.8653ms)
+✖ TC-09 sixty concurrent decisions on v1 -> 1x200, 59x412, version 2, single decidedBy (230.9188ms)
+✖ TC-10 two concurrent admin PATCH on v1 -> one 200, one 412, data equals winner payload exactly (46.2758ms)
+✖ TC-11 concurrent admin PATCH vs reviewer approve on v1 -> exactly one wins, never approved + new data (18.6538ms)
+✖ TC-12 replay same key + same fingerprint -> identical status/body, applied once, decidedAt unchanged (18.3557ms)
+✖ TC-13 same key, different fingerprint (other decision / other item) -> 422, state unchanged (18.4316ms)
+✖ TC-14 ten concurrent requests with same key -> applied once, in-flight ones 409, then replay 200 (10022.6772ms)
+✔ TC-15 beforeCommit throws -> 500 without detail, item unchanged, key released, retry same key -> 200 (91.3946ms)
+✖ TC-19 replay restores ETag header (same ETag as the original 200) (59.2654ms)
+✔ TC-20 key released after 412 allows retry with fresh If-Match (56.0712ms)
+✖ TC-16 compareAndSet: two synchronous calls with same expectedVersion -> ok then conflict, mutate once (6.531ms)
+✖ TC-16 compareAndSet: wrong versions 0 and 2 on a v1 item -> conflict, mutate not called, item unchanged (0.9054ms)
+✔ TC-16 compareAndSet: unknown id -> not-found, mutate not called (0.3981ms)
+✔ TC-17 store returns copies: editing get()/seed input/compareAndSet result never changes the store (0.4813ms)
+✖ TC-18 idempotency: new -> in-flight -> replay, mismatch, release, keyed by actor (0.6991ms)
+ℹ tests 22
+ℹ suites 0
+ℹ pass 10
+ℹ fail 11
+ℹ cancelled 1
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 11427.7096
+
+✖ failing tests:
+
+test at dist\test\review-authz.test.js:61:1
+✖ TC-06 status codes: 428 / 412 / 400 / 428 / 400, item never changes (21.7513ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  200 !== 412
+  
+      at TestContext.<anonymous> (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-authz.test.js:67:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 200,
+    expected: 412,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at dist\test\review-concurrency.test.js:5:1
+✖ TC-08 two concurrent decisions on v1 -> one 200, one 412, version 2, winner recorded (199.8653ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+  
+    [
+      200,
+  +   200
+  -   412
+    ]
+  
+      at TestContext.<anonymous> (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-concurrency.test.js:13:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ 200, 200 ],
+    expected: [ 200, 412 ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at dist\test\review-concurrency.test.js:22:1
+✖ TC-09 sixty concurrent decisions on v1 -> 1x200, 59x412, version 2, single decidedBy (230.9188ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  60 !== 1
+  
+      at TestContext.<anonymous> (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-concurrency.test.js:31:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 60,
+    expected: 1,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at dist\test\review-concurrency.test.js:39:1
+✖ TC-10 two concurrent admin PATCH on v1 -> one 200, one 412, data equals winner payload exactly (46.2758ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+  
+    [
+      200,
+  +   200
+  -   412
+    ]
+  
+      at TestContext.<anonymous> (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-concurrency.test.js:44:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ 200, 200 ],
+    expected: [ 200, 412 ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at dist\test\review-concurrency.test.js:51:1
+✖ TC-11 concurrent admin PATCH vs reviewer approve on v1 -> exactly one wins, never approved + new data (18.6538ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+  
+    [
+      200,
+  +   200
+  -   412
+    ]
+  
+      at TestContext.<anonymous> (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-concurrency.test.js:58:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ 200, 200 ],
+    expected: [ 200, 412 ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at dist\test\review-concurrency.test.js:71:1
+✖ TC-12 replay same key + same fingerprint -> identical status/body, applied once, decidedAt unchanged (18.3557ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  412 !== 200
+  
+      at TestContext.<anonymous> (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-concurrency.test.js:77:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 412,
+    expected: 200,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at dist\test\review-concurrency.test.js:83:1
+✖ TC-13 same key, different fingerprint (other decision / other item) -> 422, state unchanged (18.4316ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  412 !== 422
+  
+      at TestContext.<anonymous> (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-concurrency.test.js:90:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 412,
+    expected: 422,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at dist\test\review-concurrency.test.js:98:1
+✖ TC-14 ten concurrent requests with same key -> applied once, in-flight ones 409, then replay 200 (10022.6772ms)
+  'test timed out after 10000ms'
+
+test at dist\test\review-concurrency.test.js:147:1
+✖ TC-19 replay restores ETag header (same ETag as the original 200) (59.2654ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  412 !== 200
+  
+      at TestContext.<anonymous> (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-concurrency.test.js:153:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 412,
+    expected: 200,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at dist\test\review-store.test.js:10:1
+✖ TC-16 compareAndSet: two synchronous calls with same expectedVersion -> ok then conflict, mutate once (6.531ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+  
+    {
+  +   item: {
+  +     data: {
+  +       body: 'B',
+  +       title: 'T'
+  +     },
+  +     id: 'item-1',
+  +     status: 'approved',
+  +     version: 2
+  +   },
+  +   ok: true
+  -   ok: false,
+  -   reason: 'conflict'
+    }
+  
+      at TestContext.<anonymous> (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-store.test.js:18:12)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.start (node:internal/test_runner/test:1262:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: { ok: true, item: { id: 'item-1', data: [Object], status: 'approved', version: 2 } },
+    expected: { ok: false, reason: 'conflict' },
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at dist\test\review-store.test.js:22:1
+✖ TC-16 compareAndSet: wrong versions 0 and 2 on a v1 item -> conflict, mutate not called, item unchanged (0.9054ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+  
+    {
+  +   item: {
+  +     data: {
+  +       body: 'B',
+  +       title: 'T'
+  +     },
+  +     id: 'item-1',
+  +     status: 'pending',
+  +     version: 1
+  +   },
+  +   ok: true
+  -   ok: false,
+  -   reason: 'conflict'
+    }
+  
+      at TestContext.<anonymous> (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-store.test.js:28:16)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: { ok: true, item: { id: 'item-1', data: [Object], status: 'pending', version: 1 } },
+    expected: { ok: false, reason: 'conflict' },
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at dist\test\review-store.test.js:59:1
+✖ TC-18 idempotency: new -> in-flight -> replay, mismatch, release, keyed by actor (0.6991ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+  
+    {
+  +   kind: 'new'
+  -   kind: 'in-flight'
+    }
+  
+      at TestContext.<anonymous> (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-store.test.js:62:12)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: { kind: 'new' },
+    expected: { kind: 'in-flight' },
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+exit 1
+
+=================== M3 load harness: node scripts/review-load.mjs ===================
+review-load: N=60 rounds=5 (+1 warm-up discarded) p95 limit=2000 ms (nearest-rank, rank=57)
+
+[distinct] beforeCommit=none
+  round 1: p50=272.9 p95=277.7 max=277.9 ms
+  round 2: p50=298.2 p95=302.0 max=302.8 ms
+  round 3: p50=227.1 p95=227.8 max=228.0 ms
+  round 4: p50=254.8 p95=257.2 max=257.5 ms
+  round 5: p50=259.2 p95=263.5 max=263.8 ms
+  pooled (300 samples): p50=259.2 p95=300.6 max=302.8 ms; worst per-round p95=302.0 ms
+  status histogram (all rounds): {"200":300}
+  invariant 60x200, all approved, v2: OK
+  PASS (p95 <= 2000 ms)
+
+[contended] beforeCommit=none
+  round 1: p50=252.3 p95=264.9 max=265.3 ms
+  round 2: p50=515.9 p95=526.7 max=527.1 ms
+  round 3: p50=498.8 p95=502.2 max=502.4 ms
+  round 4: p50=510.2 p95=512.8 max=513.4 ms
+  round 5: p50=423.5 p95=437.0 max=437.3 ms
+  pooled (300 samples): p50=498.8 p95=516.5 max=527.1 ms; worst per-round p95=526.7 ms
+  status histogram (all rounds): {"200":5,"412":295}
+  invariant exactly 1x200 + 59x412, single approval, v2: OK
+  PASS (p95 <= 2000 ms)
+
+[distinct] beforeCommit=20 ms simulated I/O
+  round 1: p50=413.6 p95=440.5 max=442.9 ms
+  round 2: p50=471.1 p95=473.6 max=473.9 ms
+  round 3: p50=351.6 p95=371.6 max=374.9 ms
+  round 4: p50=387.2 p95=396.9 max=397.1 ms
+  round 5: p50=413.3 p95=429.6 max=430.3 ms
+  pooled (300 samples): p50=401.4 p95=472.6 max=473.9 ms; worst per-round p95=473.6 ms
+  status histogram (all rounds): {"200":300}
+  invariant 60x200, all approved, v2: OK
+  PASS (p95 <= 2000 ms)
+
+[contended] beforeCommit=20 ms simulated I/O
+  round 1: p50=424.9 p95=429.5 max=429.9 ms
+  round 2: p50=356.0 p95=384.6 max=384.9 ms
+  round 3: p50=350.3 p95=354.8 max=355.2 ms
+  round 4: p50=416.2 p95=429.5 max=429.8 ms
+  round 5: p50=653.2 p95=670.4 max=670.6 ms
+  pooled (300 samples): p50=411.2 p95=667.5 max=670.6 ms; worst per-round p95=670.4 ms
+  status histogram (all rounds): {"200":300}
+  invariant exactly 1x200 + 59x412, single approval, v2: BROKEN
+  FAIL (p95 <= 2000 ms)
+
+OVERALL: FAIL
+exit 1
+
+=================== Clean submission code after experiment ===================
+branch: feat/bt3-vt111-reviewer-role HEAD: 0bc8b066d9d99e7883b043b651ae8b791702174d; git branch --list 'mutation/*' output below
+  mutation/bt3-vt111-no-guard
+git grep guard: identity-server/src/review/review-store.ts:86:    if (expectedVersion !== current.version) return { ok: false, reason: "conflict" };
+git grep MUTANT in src: 0 files
+Command: npm run build && node --test dist/test/review-*.test.js
+ℹ tests 22
+ℹ pass 22
+ℹ fail 0
+exit 0
