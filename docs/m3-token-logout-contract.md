@@ -12,7 +12,7 @@ Owner: Quang (O4–O5). Baseline: `b8f400d` on `main`; Provider `oidc-provider@9
 | Access Token | Opaque Bearer token managed by Provider, 300-second TTL. The protected API never decodes it as JWT. Resolve with Provider's `AccessToken.find(rawToken)` and require: present, unexpired, `clientId=app04-react-demo`, `aud` exactly the API resource, `scope` includes `api:read`, and a live grant/account. Missing/invalid/expired/revoked token → 401; valid token lacking `api:read` → 403. Never log the raw token. |
 | ID Token | JWT for the React OIDC client, verified as in M2. It is **not** accepted as an API bearer token. |
 
-The Provider's resource-indicator policy allows only the configured API resource for this public client; other resources fail with `invalid_target`. The React owner can use the library's `resource` option and `scope='openid profile email api:read offline_access'`; `oidc-client-ts@3.5.0` exposes `resource` for sign-in and refresh. The API owner should reject a UserInfo token or an ID Token even if it belongs to the same user.
+The Provider's resource-indicator policy allows only the configured API resource for this public client; other resources fail with `invalid_target`. The React owner uses `resource` for the authorization request **and** `extraTokenParams: { resource: 'http://localhost:3000/api' }` for code exchange; `oidc-client-ts@3.5.0` stores `extraTokenParams` with the sign-in state and sends it at token exchange. Use `resource` again when refreshing. The requested scope is `openid profile email api:read offline_access`, with `prompt=consent` on authorization: `oidc-provider@9.12.2` removes `offline_access` if an explicit prompt lacks `consent`. The API owner should reject a UserInfo token or an ID Token even if it belongs to the same user.
 
 ## Refresh and revocation
 
@@ -23,7 +23,7 @@ The Provider's resource-indicator policy allows only the configured API resource
 
 ## RP-initiated logout
 
-Use `end_session_endpoint` from Discovery through `UserManager.signoutRedirect()`, with the current `id_token_hint`, `post_logout_redirect_uri=http://localhost:5173/` and library-managed `state`; then process the sign-out callback and clear client state. The Provider must end its browser session, reject an unregistered post-logout URI, and require login again on a fresh authorization request. If the pre-logout revocation request fails, still clear local state and complete RP logout, while reporting that previously issued Access Tokens may remain valid until their 300-second TTL. Do not claim that RP logout alone revokes Access Tokens.
+Use `end_session_endpoint` from Discovery through `UserManager.signoutRedirect()`, with the current `id_token_hint`, `post_logout_redirect_uri=http://localhost:5173/` and library-managed `state`; then process the sign-out callback and clear client state. With an active Provider session, `oidc-provider@9.12.2` first renders a logout confirmation form; its POST completes logout and redirects to React. The Provider must end its browser session, reject an unregistered post-logout URI, and require login again on a fresh authorization request. If the pre-logout revocation request fails, still clear local state and complete RP logout, while reporting that previously issued Access Tokens may remain valid until their 300-second TTL. Do not claim that RP logout alone revokes Access Tokens.
 
 ## Storage and ownership
 

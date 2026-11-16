@@ -1,5 +1,6 @@
 import { once } from "node:events";
 import { createServer } from "node:net";
+import { randomBytes } from "node:crypto";
 import type { AddressInfo } from "node:net";
 import type { Server } from "node:http";
 import { assertManagedDatabase } from "../scripts/test-database.mjs";
@@ -40,12 +41,19 @@ export async function createIntegrationTestContext(authenticateUser?: Parameters
     const port = (probe.address() as AddressInfo).port;
     await new Promise<void>((resolve, reject) => probe.close(error => error ? reject(error) : resolve()));
     const issuer = `http://localhost:${port}`;
-    server = createApp({
+    const config = {
       port, issuer, clientId: "app04-react-demo", redirectUri: "http://localhost:5173/callback",
       postLogoutRedirectUri: "http://localhost:5173/", scopes: ["openid", "profile", "email"], corsOrigin: "http://localhost:5173",
-    }, authenticateUser).listen(port);
+      cookieKeys: [randomBytes(32).toString("hex")],
+    };
+    server = createApp(config, authenticateUser).listen(port);
     await once(server, "listening");
-    return { baseUrl: issuer, fixtures, close };
+    const restart = async () => {
+      if (server?.listening) await new Promise<void>((resolve, reject) => server!.close(error => error ? reject(error) : resolve()));
+      server = createApp(config, authenticateUser).listen(port);
+      await once(server, "listening");
+    };
+    return { baseUrl: issuer, fixtures, close, restart };
   } catch (error) {
     await close();
     throw error;

@@ -16,3 +16,23 @@ model User {
 
   @@map("users")
 }
+
+// One row per oidc-provider model/id. Adapter hashes lookup IDs before storage;
+// payloads still contain sensitive session/token metadata, so restrict DB access.
+model OidcArtifact {
+  model      String    @db.VarChar(64)
+  id         String    @db.VarChar(512)
+  payload    Json      @db.JsonB
+  grantId    String?   @map("grant_id") @db.VarChar(512)
+  uid        String?   @db.VarChar(512)
+  userCode   String?   @map("user_code") @db.VarChar(512)
+  expiresAt  DateTime? @map("expires_at") @db.Timestamptz(6)
+  consumedAt DateTime? @map("consumed_at") @db.Timestamptz(6)
+
+  @@id([model, id])
+  @@index([model, uid])
+  @@index([model, userCode])
+  @@index([model, grantId])
+  @@index([expiresAt])
+  @@map("oidc_artifacts")
+}
