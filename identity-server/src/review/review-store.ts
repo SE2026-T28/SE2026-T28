@@ -51,14 +51,17 @@ export type ReserveResult =
   | { kind: "replay"; response: StoredResponse };
 
 export class ReviewStore {
+  private readonly items = new Map<string, ReviewItem>();
+
   /** Insert a deep copy of `item` (test fixture / bootstrap). */
-  seed(_item: ReviewItem): void {
-    throw new Error("not implemented");
+  seed(item: ReviewItem): void {
+    this.items.set(item.id, structuredClone(item));
   }
 
   /** Deep copy of the item, or undefined. Mutating the copy never changes the store. */
-  get(_id: string): ReviewItem | undefined {
-    throw new Error("not implemented");
+  get(id: string): ReviewItem | undefined {
+    const item = this.items.get(id);
+    return item === undefined ? undefined : structuredClone(item);
   }
 
   /**

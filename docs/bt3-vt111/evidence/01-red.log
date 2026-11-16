@@ -1,29 +1,39 @@
-# RED log - BT3 VT-111 (test-first; skeleton router answers 501, store throws 'not implemented')
-date: 2026-11-16T14:55:23Z
+# RED log - BT3 VT-111 (test-first; skeleton seed/get data holder, router answers 501, CAS/idempotency throw 'not implemented')
+date: 2026-11-16T14:57:09Z
 node: v24.22.0
-HEAD (baseline for this run): 1344ef62a4310fea9d5a8e8b0d486a448555e0d7
+HEAD (baseline for this run, before commit): b6a6e22c74ba37e5cc3942bfcac68adab1f1d918
+note: skeleton seed/get data holder (Map + structuredClone); compareAndSet/reserve/complete/release still throw; routes still 501.
+replaces: the log committed in b6a6e22. That run failed in the fixture (store.seed() threw 'not implemented' before any request), i.e. for the wrong reason, so it proved nothing about the feature.
 command: cd identity-server && npm run build && node --test dist/test/review-*.test.js
 
-✖ TC-01 admin and reviewer GET -> 200 {item} with ETag "v1" (3.3016ms)
-✖ TC-02 GET without token -> 401, guest -> 403, unknown id -> 404 (0.7483ms)
-✖ TC-03 reviewer PATCH -> 403, data unchanged (0.5457ms)
-✖ TC-04 admin POST decision -> 403 (separation of duties), item pending v1 (0.6056ms)
-✖ TC-05 reviewer approve/reject -> 200, decidedBy/At set, v2, data byte-identical (0.8213ms)
-✖ TC-06 status codes: 428 / 412 / 400 / 428 / 400, item never changes (0.5545ms)
-✖ TC-07 admin PATCH current -> 200 ETag v2; approve on already-decided item -> 409 (0.6697ms)
-✖ TC-08 two concurrent decisions on v1 -> one 200, one 412, version 2, winner recorded (2.8856ms)
-✖ TC-09 sixty concurrent decisions on v1 -> 1x200, 59x412, version 2, single decidedBy (0.8785ms)
-✖ TC-10 two concurrent admin PATCH on v1 -> one 200, one 412, data equals winner payload exactly (0.6618ms)
-✖ TC-11 concurrent admin PATCH vs reviewer approve on v1 -> exactly one wins, never approved + new data (0.6376ms)
-✖ TC-12 replay same key + same fingerprint -> identical status/body, applied once, decidedAt unchanged (0.5407ms)
-✖ TC-13 same key, different fingerprint (other decision / other item) -> 422, state unchanged (0.5014ms)
-✖ TC-14 ten concurrent requests with same key -> applied once, in-flight ones 409, then replay 200 (0.8392ms)
-✖ TC-15 beforeCommit throws -> 500 without detail, item unchanged, key released, retry same key -> 200 (0.845ms)
-✖ TC-16 compareAndSet: two synchronous calls with same expectedVersion -> ok then conflict, mutate once (1.5756ms)
-✖ TC-16 compareAndSet: wrong versions 0 and 2 on a v1 item -> conflict, mutate not called, item unchanged (0.3059ms)
-✖ TC-16 compareAndSet: unknown id -> not-found, mutate not called (0.1962ms)
-✖ TC-17 store returns copies: editing get()/seed input/compareAndSet result never changes the store (0.2443ms)
-✖ TC-18 idempotency: new -> in-flight -> replay, mismatch, release, keyed by actor (0.4525ms)
+
+> app04-identity-server@0.1.0 prebuild
+> node scripts/check-node.cjs
+
+
+> app04-identity-server@0.1.0 build
+> tsc -p tsconfig.json
+
+✖ TC-01 admin and reviewer GET -> 200 {item} with ETag "v1" (134.7894ms)
+✖ TC-02 GET without token -> 401, guest -> 403, unknown id -> 404 (26.3165ms)
+✖ TC-03 reviewer PATCH -> 403, data unchanged (63.489ms)
+✖ TC-04 admin POST decision -> 403 (separation of duties), item pending v1 (17.469ms)
+✖ TC-05 reviewer approve/reject -> 200, decidedBy/At set, v2, data byte-identical (15.0295ms)
+✖ TC-06 status codes: 428 / 412 / 400 / 428 / 400, item never changes (14.9184ms)
+✖ TC-07 admin PATCH current -> 200 ETag v2; approve on already-decided item -> 409 (11.9594ms)
+✖ TC-08 two concurrent decisions on v1 -> one 200, one 412, version 2, winner recorded (177.4388ms)
+✖ TC-09 sixty concurrent decisions on v1 -> 1x200, 59x412, version 2, single decidedBy (196.3452ms)
+✖ TC-10 two concurrent admin PATCH on v1 -> one 200, one 412, data equals winner payload exactly (42.2358ms)
+✖ TC-11 concurrent admin PATCH vs reviewer approve on v1 -> exactly one wins, never approved + new data (20.5836ms)
+✖ TC-12 replay same key + same fingerprint -> identical status/body, applied once, decidedAt unchanged (12.2409ms)
+✖ TC-13 same key, different fingerprint (other decision / other item) -> 422, state unchanged (11.0545ms)
+✖ TC-14 ten concurrent requests with same key -> applied once, in-flight ones 409, then replay 200 (10.6744ms)
+✖ TC-15 beforeCommit throws -> 500 without detail, item unchanged, key released, retry same key -> 200 (10.425ms)
+✖ TC-16 compareAndSet: two synchronous calls with same expectedVersion -> ok then conflict, mutate once (2.7629ms)
+✖ TC-16 compareAndSet: wrong versions 0 and 2 on a v1 item -> conflict, mutate not called, item unchanged (0.6035ms)
+✖ TC-16 compareAndSet: unknown id -> not-found, mutate not called (0.3422ms)
+✖ TC-17 store returns copies: editing get()/seed input/compareAndSet result never changes the store (0.6391ms)
+✖ TC-18 idempotency: new -> in-flight -> replay, mismatch, release, keyed by actor (0.5177ms)
 ℹ tests 20
 ℹ suites 0
 ℹ pass 0
@@ -31,218 +41,322 @@ command: cd identity-server && npm run build && node --test dist/test/review-*.t
 ℹ cancelled 0
 ℹ skipped 0
 ℹ todo 0
-ℹ duration_ms 645.8785
+ℹ duration_ms 1070.5318
 
 ✖ failing tests:
 
 test at dist\test\review-authz.test.js:4:1
-✖ TC-01 admin and reviewer GET -> 200 {item} with ETag "v1" (3.3016ms)
-  Error: not implemented
-      at ReviewStore.seed (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/src/review/review-store.js:9:15)
-      at startApp (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-helpers.js:38:15)
-      at TestContext.<anonymous> (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-authz.test.js:5:23)
-      at Test.runInAsyncScope (node:async_hooks:227:14)
-      at Test.run (node:internal/test_runner/test:1402:25)
-      at Test.start (node:internal/test_runner/test:1262:17)
-      at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17)
+✖ TC-01 admin and reviewer GET -> 200 {item} with ETag "v1" (134.7894ms)
+  AssertionError [ERR_ASSERTION]: admin-token
+  
+  501 !== 200
+  
+      at TestContext.<anonymous> (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-authz.test.js:8:16)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 501,
+    expected: 200,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
 
 test at dist\test\review-authz.test.js:13:1
-✖ TC-02 GET without token -> 401, guest -> 403, unknown id -> 404 (0.7483ms)
-  Error: not implemented
-      at ReviewStore.seed (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/src/review/review-store.js:9:15)
-      at startApp (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-helpers.js:38:15)
-      at TestContext.<anonymous> (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-authz.test.js:14:23)
-      at Test.runInAsyncScope (node:async_hooks:227:14)
-      at Test.run (node:internal/test_runner/test:1402:25)
-      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
-      at Test.postRun (node:internal/test_runner/test:1542:19)
-      at Test.run (node:internal/test_runner/test:1467:12)
-      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3)
+✖ TC-02 GET without token -> 401, guest -> 403, unknown id -> 404 (26.3165ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  501 !== 401
+  
+      at TestContext.<anonymous> (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-authz.test.js:15:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 501,
+    expected: 401,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
 
 test at dist\test\review-authz.test.js:20:1
-✖ TC-03 reviewer PATCH -> 403, data unchanged (0.5457ms)
-  Error: not implemented
-      at ReviewStore.seed (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/src/review/review-store.js:9:15)
-      at startApp (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-helpers.js:38:15)
-      at TestContext.<anonymous> (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-authz.test.js:21:23)
-      at Test.runInAsyncScope (node:async_hooks:227:14)
-      at Test.run (node:internal/test_runner/test:1402:25)
-      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
-      at Test.postRun (node:internal/test_runner/test:1542:19)
-      at Test.run (node:internal/test_runner/test:1467:12)
-      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+✖ TC-03 reviewer PATCH -> 403, data unchanged (63.489ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  501 !== 403
+  
+      at TestContext.<anonymous> (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-authz.test.js:25:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 501,
+    expected: 403,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
 
 test at dist\test\review-authz.test.js:31:1
-✖ TC-04 admin POST decision -> 403 (separation of duties), item pending v1 (0.6056ms)
-  Error: not implemented
-      at ReviewStore.seed (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/src/review/review-store.js:9:15)
-      at startApp (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-helpers.js:38:15)
-      at TestContext.<anonymous> (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-authz.test.js:32:23)
-      at Test.runInAsyncScope (node:async_hooks:227:14)
-      at Test.run (node:internal/test_runner/test:1402:25)
-      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
-      at Test.postRun (node:internal/test_runner/test:1542:19)
-      at Test.run (node:internal/test_runner/test:1467:12)
-      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+✖ TC-04 admin POST decision -> 403 (separation of duties), item pending v1 (17.469ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  501 !== 403
+  
+      at TestContext.<anonymous> (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-authz.test.js:35:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 501,
+    expected: 403,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
 
 test at dist\test\review-authz.test.js:40:1
-✖ TC-05 reviewer approve/reject -> 200, decidedBy/At set, v2, data byte-identical (0.8213ms)
-  Error: not implemented
-      at ReviewStore.seed (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/src/review/review-store.js:9:15)
-      at startApp (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-helpers.js:38:15)
-      at TestContext.<anonymous> (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-authz.test.js:41:23)
-      at Test.runInAsyncScope (node:async_hooks:227:14)
-      at Test.run (node:internal/test_runner/test:1402:25)
-      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
-      at Test.postRun (node:internal/test_runner/test:1542:19)
-      at Test.run (node:internal/test_runner/test:1467:12)
-      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+✖ TC-05 reviewer approve/reject -> 200, decidedBy/At set, v2, data byte-identical (15.0295ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  501 !== 200
+  
+      at TestContext.<anonymous> (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-authz.test.js:44:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 501,
+    expected: 200,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
 
 test at dist\test\review-authz.test.js:61:1
-✖ TC-06 status codes: 428 / 412 / 400 / 428 / 400, item never changes (0.5545ms)
-  Error: not implemented
-      at ReviewStore.seed (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/src/review/review-store.js:9:15)
-      at startApp (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-helpers.js:38:15)
-      at TestContext.<anonymous> (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-authz.test.js:62:23)
-      at Test.runInAsyncScope (node:async_hooks:227:14)
-      at Test.run (node:internal/test_runner/test:1402:25)
-      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
-      at Test.postRun (node:internal/test_runner/test:1542:19)
-      at Test.run (node:internal/test_runner/test:1467:12)
-      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+✖ TC-06 status codes: 428 / 412 / 400 / 428 / 400, item never changes (14.9184ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  501 !== 428
+  
+      at TestContext.<anonymous> (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-authz.test.js:65:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 501,
+    expected: 428,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
 
 test at dist\test\review-authz.test.js:76:1
-✖ TC-07 admin PATCH current -> 200 ETag v2; approve on already-decided item -> 409 (0.6697ms)
-  Error: not implemented
-      at ReviewStore.seed (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/src/review/review-store.js:9:15)
-      at startApp (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-helpers.js:38:15)
-      at TestContext.<anonymous> (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-authz.test.js:78:23)
-      at Test.runInAsyncScope (node:async_hooks:227:14)
-      at Test.run (node:internal/test_runner/test:1402:25)
-      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
-      at Test.postRun (node:internal/test_runner/test:1542:19)
-      at Test.run (node:internal/test_runner/test:1467:12)
-      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+✖ TC-07 admin PATCH current -> 200 ETag v2; approve on already-decided item -> 409 (11.9594ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  501 !== 200
+  
+      at TestContext.<anonymous> (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-authz.test.js:80:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 501,
+    expected: 200,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
 
 test at dist\test\review-concurrency.test.js:5:1
-✖ TC-08 two concurrent decisions on v1 -> one 200, one 412, version 2, winner recorded (2.8856ms)
-  Error: not implemented
-      at ReviewStore.seed (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/src/review/review-store.js:9:15)
-      at startApp (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-helpers.js:38:15)
-      at TestContext.<anonymous> (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-concurrency.test.js:7:23)
-      at Test.runInAsyncScope (node:async_hooks:227:14)
-      at Test.run (node:internal/test_runner/test:1402:25)
-      at Test.start (node:internal/test_runner/test:1262:17)
-      at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17)
+✖ TC-08 two concurrent decisions on v1 -> one 200, one 412, version 2, winner recorded (177.4388ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+  
+    [
+  +   501,
+  +   501
+  -   200,
+  -   412
+    ]
+  
+      at TestContext.<anonymous> (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-concurrency.test.js:13:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ 501, 501 ],
+    expected: [ 200, 412 ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
 
 test at dist\test\review-concurrency.test.js:22:1
-✖ TC-09 sixty concurrent decisions on v1 -> 1x200, 59x412, version 2, single decidedBy (0.8785ms)
-  Error: not implemented
-      at ReviewStore.seed (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/src/review/review-store.js:9:15)
-      at startApp (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-helpers.js:38:15)
-      at TestContext.<anonymous> (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-concurrency.test.js:24:23)
-      at Test.runInAsyncScope (node:async_hooks:227:14)
-      at Test.run (node:internal/test_runner/test:1402:25)
-      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
-      at Test.postRun (node:internal/test_runner/test:1542:19)
-      at Test.run (node:internal/test_runner/test:1467:12)
-      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3)
+✖ TC-09 sixty concurrent decisions on v1 -> 1x200, 59x412, version 2, single decidedBy (196.3452ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  0 !== 1
+  
+      at TestContext.<anonymous> (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-concurrency.test.js:31:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 0,
+    expected: 1,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
 
 test at dist\test\review-concurrency.test.js:39:1
-✖ TC-10 two concurrent admin PATCH on v1 -> one 200, one 412, data equals winner payload exactly (0.6618ms)
-  Error: not implemented
-      at ReviewStore.seed (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/src/review/review-store.js:9:15)
-      at startApp (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-helpers.js:38:15)
-      at TestContext.<anonymous> (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-concurrency.test.js:41:23)
-      at Test.runInAsyncScope (node:async_hooks:227:14)
-      at Test.run (node:internal/test_runner/test:1402:25)
-      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
-      at Test.postRun (node:internal/test_runner/test:1542:19)
-      at Test.run (node:internal/test_runner/test:1467:12)
-      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+✖ TC-10 two concurrent admin PATCH on v1 -> one 200, one 412, data equals winner payload exactly (42.2358ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+  
+    [
+  +   501,
+  +   501
+  -   200,
+  -   412
+    ]
+  
+      at TestContext.<anonymous> (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-concurrency.test.js:44:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ 501, 501 ],
+    expected: [ 200, 412 ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
 
 test at dist\test\review-concurrency.test.js:51:1
-✖ TC-11 concurrent admin PATCH vs reviewer approve on v1 -> exactly one wins, never approved + new data (0.6376ms)
-  Error: not implemented
-      at ReviewStore.seed (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/src/review/review-store.js:9:15)
-      at startApp (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-helpers.js:38:15)
-      at TestContext.<anonymous> (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-concurrency.test.js:53:23)
-      at Test.runInAsyncScope (node:async_hooks:227:14)
-      at Test.run (node:internal/test_runner/test:1402:25)
-      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
-      at Test.postRun (node:internal/test_runner/test:1542:19)
-      at Test.run (node:internal/test_runner/test:1467:12)
-      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+✖ TC-11 concurrent admin PATCH vs reviewer approve on v1 -> exactly one wins, never approved + new data (20.5836ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+  
+    [
+  +   501,
+  +   501
+  -   200,
+  -   412
+    ]
+  
+      at TestContext.<anonymous> (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-concurrency.test.js:58:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ 501, 501 ],
+    expected: [ 200, 412 ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
 
 test at dist\test\review-concurrency.test.js:71:1
-✖ TC-12 replay same key + same fingerprint -> identical status/body, applied once, decidedAt unchanged (0.5407ms)
-  Error: not implemented
-      at ReviewStore.seed (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/src/review/review-store.js:9:15)
-      at startApp (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-helpers.js:38:15)
-      at TestContext.<anonymous> (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-concurrency.test.js:72:23)
-      at Test.runInAsyncScope (node:async_hooks:227:14)
-      at Test.run (node:internal/test_runner/test:1402:25)
-      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
-      at Test.postRun (node:internal/test_runner/test:1542:19)
-      at Test.run (node:internal/test_runner/test:1467:12)
-      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+✖ TC-12 replay same key + same fingerprint -> identical status/body, applied once, decidedAt unchanged (12.2409ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  501 !== 200
+  
+      at TestContext.<anonymous> (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-concurrency.test.js:74:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 501,
+    expected: 200,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
 
 test at dist\test\review-concurrency.test.js:83:1
-✖ TC-13 same key, different fingerprint (other decision / other item) -> 422, state unchanged (0.5014ms)
-  Error: not implemented
-      at ReviewStore.seed (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/src/review/review-store.js:9:15)
-      at startApp (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-helpers.js:38:15)
-      at TestContext.<anonymous> (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-concurrency.test.js:84:23)
-      at Test.runInAsyncScope (node:async_hooks:227:14)
-      at Test.run (node:internal/test_runner/test:1402:25)
-      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
-      at Test.postRun (node:internal/test_runner/test:1542:19)
-      at Test.run (node:internal/test_runner/test:1467:12)
-      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+✖ TC-13 same key, different fingerprint (other decision / other item) -> 422, state unchanged (11.0545ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  501 !== 200
+  
+      at TestContext.<anonymous> (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-concurrency.test.js:86:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 501,
+    expected: 200,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
 
 test at dist\test\review-concurrency.test.js:98:1
-✖ TC-14 ten concurrent requests with same key -> applied once, in-flight ones 409, then replay 200 (0.8392ms)
-  Error: not implemented
-      at ReviewStore.seed (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/src/review/review-store.js:9:15)
-      at startApp (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-helpers.js:38:15)
-      at TestContext.<anonymous> (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-concurrency.test.js:102:23)
-      at Test.runInAsyncScope (node:async_hooks:227:14)
-      at Test.run (node:internal/test_runner/test:1402:25)
-      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
-      at Test.postRun (node:internal/test_runner/test:1542:19)
-      at Test.run (node:internal/test_runner/test:1467:12)
-      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+✖ TC-14 ten concurrent requests with same key -> applied once, in-flight ones 409, then replay 200 (10.6744ms)
+  AssertionError [ERR_ASSERTION]: first request returned before reaching beforeCommit
+  + actual - expected
+  
+  + {
+  +   headers: Headers {},
+  +   json: {
+  +     error: 'NOT_IMPLEMENTED'
+  +   },
+  +   status: 501,
+  +   text: '{"error":"NOT_IMPLEMENTED"}'
+  + }
+  - null
+  
+      at TestContext.<anonymous> (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-concurrency.test.js:112:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: { status: 501, headers: {}, text: '{"error":"NOT_IMPLEMENTED"}', json: { error: 'NOT_IMPLEMENTED' } },
+    expected: null,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
 
 test at dist\test\review-concurrency.test.js:126:1
-✖ TC-15 beforeCommit throws -> 500 without detail, item unchanged, key released, retry same key -> 200 (0.845ms)
-  Error: not implemented
-      at ReviewStore.seed (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/src/review/review-store.js:9:15)
-      at startApp (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-helpers.js:38:15)
-      at TestContext.<anonymous> (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-concurrency.test.js:128:23)
-      at Test.runInAsyncScope (node:async_hooks:227:14)
-      at Test.run (node:internal/test_runner/test:1402:25)
-      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
-      at Test.postRun (node:internal/test_runner/test:1542:19)
-      at Test.run (node:internal/test_runner/test:1467:12)
-      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+✖ TC-15 beforeCommit throws -> 500 without detail, item unchanged, key released, retry same key -> 200 (10.425ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  501 !== 500
+  
+      at TestContext.<anonymous> (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-concurrency.test.js:136:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 501,
+    expected: 500,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
 
 test at dist\test\review-store.test.js:10:1
-✖ TC-16 compareAndSet: two synchronous calls with same expectedVersion -> ok then conflict, mutate once (1.5756ms)
+✖ TC-16 compareAndSet: two synchronous calls with same expectedVersion -> ok then conflict, mutate once (2.7629ms)
   Error: not implemented
-      at ReviewStore.seed (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/src/review/review-store.js:9:15)
-      at freshStore (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-store.test.js:7:11)
-      at TestContext.<anonymous> (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-store.test.js:11:19)
+      at ReviewStore.compareAndSet (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/src/review/review-store.js:24:15)
+      at TestContext.<anonymous> (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-store.test.js:14:25)
       at Test.runInAsyncScope (node:async_hooks:227:14)
       at Test.run (node:internal/test_runner/test:1402:25)
       at Test.start (node:internal/test_runner/test:1262:17)
       at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17)
 
 test at dist\test\review-store.test.js:22:1
-✖ TC-16 compareAndSet: wrong versions 0 and 2 on a v1 item -> conflict, mutate not called, item unchanged (0.3059ms)
+✖ TC-16 compareAndSet: wrong versions 0 and 2 on a v1 item -> conflict, mutate not called, item unchanged (0.6035ms)
   Error: not implemented
-      at ReviewStore.seed (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/src/review/review-store.js:9:15)
-      at freshStore (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-store.test.js:7:11)
-      at TestContext.<anonymous> (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-store.test.js:24:23)
+      at ReviewStore.compareAndSet (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/src/review/review-store.js:24:15)
+      at TestContext.<anonymous> (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-store.test.js:27:30)
       at Test.runInAsyncScope (node:async_hooks:227:14)
       at Test.run (node:internal/test_runner/test:1402:25)
       at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
@@ -251,11 +365,10 @@ test at dist\test\review-store.test.js:22:1
       at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3)
 
 test at dist\test\review-store.test.js:33:1
-✖ TC-16 compareAndSet: unknown id -> not-found, mutate not called (0.1962ms)
+✖ TC-16 compareAndSet: unknown id -> not-found, mutate not called (0.3422ms)
   Error: not implemented
-      at ReviewStore.seed (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/src/review/review-store.js:9:15)
-      at freshStore (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-store.test.js:7:11)
-      at TestContext.<anonymous> (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-store.test.js:34:19)
+      at ReviewStore.compareAndSet (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/src/review/review-store.js:24:15)
+      at TestContext.<anonymous> (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-store.test.js:36:26)
       at Test.runInAsyncScope (node:async_hooks:227:14)
       at Test.run (node:internal/test_runner/test:1402:25)
       at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
@@ -264,10 +377,10 @@ test at dist\test\review-store.test.js:33:1
       at async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
 
 test at dist\test\review-store.test.js:40:1
-✖ TC-17 store returns copies: editing get()/seed input/compareAndSet result never changes the store (0.2443ms)
+✖ TC-17 store returns copies: editing get()/seed input/compareAndSet result never changes the store (0.6391ms)
   Error: not implemented
-      at ReviewStore.seed (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/src/review/review-store.js:9:15)
-      at TestContext.<anonymous> (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-store.test.js:43:11)
+      at ReviewStore.compareAndSet (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/src/review/review-store.js:24:15)
+      at TestContext.<anonymous> (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-store.test.js:51:23)
       at Test.runInAsyncScope (node:async_hooks:227:14)
       at Test.run (node:internal/test_runner/test:1402:25)
       at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
@@ -276,94 +389,41 @@ test at dist\test\review-store.test.js:40:1
       at async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
 
 test at dist\test\review-store.test.js:59:1
-✖ TC-18 idempotency: new -> in-flight -> replay, mismatch, release, keyed by actor (0.4525ms)
+✖ TC-18 idempotency: new -> in-flight -> replay, mismatch, release, keyed by actor (0.5177ms)
   Error: not implemented
-      at ReviewStore.seed (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/src/review/review-store.js:9:15)
-      at freshStore (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-store.test.js:7:11)
-      at TestContext.<anonymous> (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-store.test.js:60:19)
+      at ReviewStore.reserve (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/src/review/review-store.js:28:15)
+      at TestContext.<anonymous> (file:///C:/Users/chous/Documents/coding%20every%20thing%20(from%20OneDrive%20-%20komodore)/hus/SE/identity-server/dist/test/review-store.test.js:61:28)
       at Test.runInAsyncScope (node:async_hooks:227:14)
       at Test.run (node:internal/test_runner/test:1402:25)
       at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
       at Test.postRun (node:internal/test_runner/test:1542:19)
       at Test.run (node:internal/test_runner/test:1467:12)
       at async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
-exit: 1
 
-## Baseline non-DB tests
-command: node --test dist/test/{discovery,harness-cleanup,interactions,login-page,m2-authorization-boundary,security-headers}.test.js
-ℹ tests 35 ℹ pass 35 ℹ fail 0 ℹ skipped 0 
-
-## Why each test is red
-Official run above: every test fails at store.seed()/store methods -> Error: not implemented (store skeleton), so the router is never reached.
-Diagnostic run (store seed/get temporarily backed by a Map, router still 501; NOT committed) proves router-level tests fail on the missing feature, not on test bugs:
-```
-✖ TC-01 admin and reviewer GET -> 200 {item} with ETag "v1" (137.6696ms)
-✖ TC-02 GET without token -> 401, guest -> 403, unknown id -> 404 (30.97ms)
-✖ TC-03 reviewer PATCH -> 403, data unchanged (62.8667ms)
-✖ TC-04 admin POST decision -> 403 (separation of duties), item pending v1 (19.7068ms)
-✖ TC-05 reviewer approve/reject -> 200, decidedBy/At set, v2, data byte-identical (17.2137ms)
-✖ TC-06 status codes: 428 / 412 / 400 / 428 / 400, item never changes (14.849ms)
-✖ TC-07 admin PATCH current -> 200 ETag v2; approve on already-decided item -> 409 (15.2552ms)
-✖ TC-08 two concurrent decisions on v1 -> one 200, one 412, version 2, winner recorded (187.4926ms)
-✖ TC-09 sixty concurrent decisions on v1 -> 1x200, 59x412, version 2, single decidedBy (193.106ms)
-✖ TC-10 two concurrent admin PATCH on v1 -> one 200, one 412, data equals winner payload exactly (48.7758ms)
-✖ TC-11 concurrent admin PATCH vs reviewer approve on v1 -> exactly one wins, never approved + new data (19.5117ms)
-✖ TC-12 replay same key + same fingerprint -> identical status/body, applied once, decidedAt unchanged (10.6595ms)
-✖ TC-13 same key, different fingerprint (other decision / other item) -> 422, state unchanged (9.8318ms)
-✖ TC-14 ten concurrent requests with same key -> applied once, in-flight ones 409, then replay 200 (11.4134ms)
-✖ TC-15 beforeCommit throws -> 500 without detail, item unchanged, key released, retry same key -> 200 (12.812ms)
-ℹ tests 15
-ℹ pass 0
-ℹ fail 15
-✖ TC-01 admin and reviewer GET -> 200 {item} with ETag "v1" (137.6696ms)
-  501 !== 200
-    actual: 501,
-✖ TC-02 GET without token -> 401, guest -> 403, unknown id -> 404 (30.97ms)
-  501 !== 401
-    actual: 501,
-✖ TC-03 reviewer PATCH -> 403, data unchanged (62.8667ms)
-  501 !== 403
-    actual: 501,
-✖ TC-04 admin POST decision -> 403 (separation of duties), item pending v1 (19.7068ms)
-  501 !== 403
-    actual: 501,
-✖ TC-05 reviewer approve/reject -> 200, decidedBy/At set, v2, data byte-identical (17.2137ms)
-  501 !== 200
-    actual: 501,
-✖ TC-06 status codes: 428 / 412 / 400 / 428 / 400, item never changes (14.849ms)
-  501 !== 428
-    actual: 501,
-✖ TC-07 admin PATCH current -> 200 ETag v2; approve on already-decided item -> 409 (15.2552ms)
-  501 !== 200
-    actual: 501,
-✖ TC-08 two concurrent decisions on v1 -> one 200, one 412, version 2, winner recorded (187.4926ms)
-    actual: [ 501, 501 ],
-✖ TC-09 sixty concurrent decisions on v1 -> 1x200, 59x412, version 2, single decidedBy (193.106ms)
-  0 !== 1
-    actual: 0,
-✖ TC-10 two concurrent admin PATCH on v1 -> one 200, one 412, data equals winner payload exactly (48.7758ms)
-    actual: [ 501, 501 ],
-✖ TC-11 concurrent admin PATCH vs reviewer approve on v1 -> exactly one wins, never approved + new data (19.5117ms)
-    actual: [ 501, 501 ],
-✖ TC-12 replay same key + same fingerprint -> identical status/body, applied once, decidedAt unchanged (10.6595ms)
-  501 !== 200
-    actual: 501,
-✖ TC-13 same key, different fingerprint (other decision / other item) -> 422, state unchanged (9.8318ms)
-  501 !== 200
-    actual: 501,
-✖ TC-14 ten concurrent requests with same key -> applied once, in-flight ones 409, then replay 200 (11.4134ms)
-  AssertionError [ERR_ASSERTION]: first request returned before reaching beforeCommit
-✖ TC-15 beforeCommit throws -> 500 without detail, item unchanged, key released, retry same key -> 200 (12.812ms)
-  501 !== 500
-    actual: 501,
-```
-
-| TC | Official red reason | Diagnostic reason (router 501) |
+## Per-TC result (20 tests: 0 pass, 20 fail; all failures = missing feature)
+| TC | result | observed failure reason |
 |---|---|---|
-| TC-01..TC-07 | store.seed: not implemented | `501 !== <expected 200/401/403/428/409>` on first request |
-| TC-08, TC-10, TC-11 | store.seed: not implemented | statuses `[501,501]` vs `[200,412]` |
-| TC-09 | store.seed: not implemented | 0 x 200, expected 1 |
-| TC-12, TC-13 | store.seed: not implemented | `501 !== 200` on first decision |
-| TC-14 | store.seed: not implemented | first request answers 501 before reaching beforeCommit (fail-fast assert) |
-| TC-15 | store.seed: not implemented | `501 !== 500` on failing decision |
-| TC-16..TC-18 | store methods: not implemented | n/a (unit tests on store) |
+| TC-01 | fail | `501 !== 200` (msg: admin-token) |
+| TC-02 | fail | `501 !== 401` |
+| TC-03 | fail | `501 !== 403` |
+| TC-04 | fail | `501 !== 403` |
+| TC-05 | fail | `501 !== 200` |
+| TC-06 | fail | `501 !== 428` |
+| TC-07 | fail | `501 !== 200` |
+| TC-08 | fail | statuses `[501,501]` vs expected `[200,412]` |
+| TC-09 | fail | count of 200s `0 !== 1` (all 501) |
+| TC-10 | fail | `[501,501]` vs `[200,412]` |
+| TC-11 | fail | `[501,501]` vs `[200,412]` |
+| TC-12 | fail | `501 !== 200` |
+| TC-13 | fail | `501 !== 200` (first request) |
+| TC-14 | fail | "first request returned before reaching beforeCommit" (got 501 NOT_IMPLEMENTED) |
+| TC-15 | fail | `501 !== 500` |
+| TC-16 (x3) | fail | `Error: not implemented` (compareAndSet) |
+| TC-17 | fail | `Error: not implemented` (compareAndSet used inside test; seed/get copy part now works) |
+| TC-18 | fail | `Error: not implemented` (reserve) |
+
+## Baseline: non-DB suites (must stay green)
+command: node --test dist/test/{discovery,harness-cleanup,interactions,login-page,m2-authorization-boundary,security-headers}.test.js
+ℹ tests 35
+ℹ pass 35
+ℹ fail 0
