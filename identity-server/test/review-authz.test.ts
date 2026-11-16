@@ -110,3 +110,35 @@ test("TC-07 admin PATCH current -> 200 ETag v2; approve on already-decided item 
   assert.equal(second.status, 409);
   assert.equal(app.store.get("item-1")?.status, "approved");
 });
+
+test("TC-21 admin PATCH on decided item -> 409 ALREADY_DECIDED, data/version/status unchanged", async (t) => {
+  const decided = makeItem("item-1", { status: "approved", version: 2, decidedBy: "reviewer-1", decidedAt: FIXED_NOW });
+  const app = await startApp(t, { items: [decided] });
+  const before = snapshot(app.store);
+
+  const res = await patch(app, "admin-token", { title: "HACK", body: "HB" }, { ifMatch: "\"v2\"" });
+  assert.equal(res.status, 409);
+  assert.deepEqual(res.json, { error: "ALREADY_DECIDED" });
+  assert.equal(snapshot(app.store), before);
+  assert.deepEqual(app.store.get("item-1")?.data, { title: "T", body: "B" });
+  assert.equal(app.store.get("item-1")?.version, 2);
+  assert.equal(app.store.get("item-1")?.status, "approved");
+});
+
+test("TC-22 resolveActor throws -> 500 INTERNAL without message leak, item unchanged", async (t) => {
+  const app = await startApp(t, {
+    resolveActor: () => { throw new Error("resolver-secret-detail"); },
+  });
+  const before = snapshot(app.store);
+  const calls = [
+    await app.call("GET", "/item-1", { token: "admin-token" }),
+    await patch(app, "admin-token", { title: "X" }, { ifMatch: "\"v1\"" }),
+    await decide(app, "reviewer-token", "approve", { ifMatch: "\"v1\"", key: "k-1" }),
+  ];
+  for (const res of calls) {
+    assert.equal(res.status, 500);
+    assert.deepEqual(res.json, { error: "INTERNAL" });
+    assert.ok(!res.text.includes("resolver-secret-detail"));
+  }
+  assert.equal(snapshot(app.store), before);
+});

@@ -67,7 +67,12 @@ export interface TestApp {
 /** Fresh store + express app on an ephemeral loopback port; closed via t.after. */
 export async function startApp(
   t: TestContext,
-  options: { items?: ReviewItem[]; beforeCommit?: ReviewRouterOptions["beforeCommit"] } = {},
+  options: {
+    items?: ReviewItem[];
+    beforeCommit?: ReviewRouterOptions["beforeCommit"];
+    /** Replaces the token-based resolver (e.g. to inject a throwing one). */
+    resolveActor?: ReviewRouterOptions["resolveActor"];
+  } = {},
 ): Promise<TestApp> {
   const store = new ReviewStore();
   for (const item of options.items ?? [makeItem()]) store.seed(item);
@@ -75,10 +80,10 @@ export async function startApp(
   app.use(express.json());
   app.use("/review-items", createReviewRouter({
     store,
-    resolveActor: (req) => {
+    resolveActor: options.resolveActor ?? ((req) => {
       const match = /^Bearer (.+)$/.exec(req.get("authorization") ?? "");
       return match ? TOKENS[match[1]] ?? null : null;
-    },
+    }),
     beforeCommit: options.beforeCommit,
     now: () => new Date(FIXED_NOW),
   }));

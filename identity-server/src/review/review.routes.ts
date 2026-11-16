@@ -24,10 +24,13 @@ export interface ReviewRouterOptions {
   now?: () => Date;
 }
 
+/** Thrown from a compareAndSet mutate to abort the write when the item was decided meanwhile. */
+class AlreadyDecided extends Error {}
+
 /**
  * Mounted by tests at /review-items:
  *   GET    /:id            admin|reviewer -> 200 {item} + ETag "v<n>"
- *   PATCH  /:id            admin, If-Match required -> 200 {item} + ETag
+ *   PATCH  /:id            admin, If-Match required, pending items only (decided -> 409) -> 200 {item} + ETag
  *   POST   /:id/decision   reviewer, Idempotency-Key + If-Match required,
  *                          body {decision:"approve"|"reject"} -> 200 {item}
  * Check order for POST: see docs/bt3-vt111/spec.md section 4.
@@ -73,15 +76,23 @@ export function createReviewRouter(options: ReviewRouterOptions): Router {
       const title = asString(req.body?.title);
       const body = asString(req.body?.body);
       if (title === undefined && body === undefined) return send(res, 400, { error: "INVALID_BODY" });
+      // Same order as the decision route: stale version -> 412, then decided -> 409 (decided data is frozen).
+      const current = store.get(idOf(req));
+      if (!current) return send(res, 404, { error: "NOT_FOUND" });
+      if (current.version !== parseVersion(ifMatch)) return send(res, 412, { error: "VERSION_CONFLICT" });
+      if (current.status !== "pending") return send(res, 409, { error: "ALREADY_DECIDED" });
       await beforeCommit?.({ itemId: idOf(req), kind: "patch", actorId: res.locals.actor.id });
-      // The version check cannot live above: the await lets others commit. It is enforced in compareAndSet.
+      // Version and status cannot be trusted above: the await lets others commit (e.g. a decision).
+      // Both are re-checked synchronously inside compareAndSet; throwing from mutate aborts the write.
       const r = store.compareAndSet(idOf(req), parseVersion(ifMatch), (d) => {
+        if (d.status !== "pending") throw new AlreadyDecided();
         if (title !== undefined) d.data.title = title;
         if (body !== undefined) d.data.body = body;
       });
       if (!r.ok) return r.reason === "conflict" ? send(res, 412, { error: "VERSION_CONFLICT" }) : send(res, 404, { error: "NOT_FOUND" });
       send(res, 200, { item: r.item }, r.item);
-    } catch {
+    } catch (e) {
+      if (e instanceof AlreadyDecided) return send(res, 409, { error: "ALREADY_DECIDED" });
       send(res, 500, { error: "INTERNAL" });
     }
   });

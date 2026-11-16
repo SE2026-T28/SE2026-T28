@@ -126,8 +126,19 @@ test("TC-14 ten concurrent requests with same key -> applied once, in-flight one
   // First request must park in beforeCommit with the key reserved; if it answers first, fail fast.
   const early = await Promise.race([entered.promise.then(() => null), first]);
   assert.equal(early, null, "first request returned before reaching beforeCommit");
-  const others = await Promise.all(Array.from({ length: 9 }, () =>
+  // Under a broken guard (no in-flight 409) the duplicates would park in beforeCommit too and never
+  // answer until the gate opens. A deadline turns that hang into an assertion failure instead of a
+  // 10 s test timeout. The timer only bounds the FAILURE path: the correct code answers in
+  // milliseconds, so 2 s is a generous ceiling, not a timing guess.
+  const othersPromise = Promise.all(Array.from({ length: 9 }, () =>
     decide(app, "reviewer-token", "approve", { ifMatch: V1, key: "k-1" })));
+  let deadline: NodeJS.Timeout | undefined;
+  const others = await Promise.race([
+    othersPromise,
+    new Promise<null>((resolve) => { deadline = setTimeout(() => resolve(null), 2_000); }),
+  ]);
+  clearTimeout(deadline);
+  if (others === null) assert.fail("duplicate in-flight requests were not answered within 2 s (no 409 guard)");
   assert.ok(others.every((r) => r.status === 409), others.map((r) => r.status).join(","));
   assert.equal(app.store.get("item-1")?.version, 1);
 
