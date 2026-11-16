@@ -1,51 +1,52 @@
-# 07-load.log
-date: 2026-11-16T15:03:57Z
+# 07-load.log (rerun after R7 fix + reviewer fixes)
+date: 2026-11-16T15:47:12Z
 node: v24.22.0
-HEAD: e9b8afd7be2d0c736ffc4c60094d5b9e71e5636e
+HEAD: 592b2859732dbbaa5778bc2a031b9900a66d19c4
 command: cd identity-server && npm run build && node scripts/review-load.mjs
+note: the harness gates PASS/FAIL on the WORST PER-ROUND p95 (not the pooled p95); limit 2000 ms.
 
 review-load: N=60 rounds=5 (+1 warm-up discarded) p95 limit=2000 ms (nearest-rank, rank=57)
 
 [distinct] beforeCommit=none
-  round 1: p50=279.0 p95=280.2 max=280.4 ms
-  round 2: p50=254.7 p95=257.7 max=258.1 ms
-  round 3: p50=276.6 p95=283.0 max=283.1 ms
-  round 4: p50=272.3 p95=273.9 max=274.9 ms
-  round 5: p50=215.8 p95=222.1 max=222.3 ms
-  pooled (300 samples): p50=271.3 p95=280.0 max=283.1 ms; worst per-round p95=283.0 ms
+  round 1: p50=220.2 p95=222.2 max=222.2 ms
+  round 2: p50=182.3 p95=182.9 max=183.1 ms
+  round 3: p50=196.3 p95=202.7 max=202.8 ms
+  round 4: p50=210.9 p95=212.0 max=212.3 ms
+  round 5: p50=187.4 p95=187.8 max=187.8 ms
+  pooled (300 samples): p50=196.3 p95=221.0 max=222.2 ms; worst per-round p95=222.2 ms
   status histogram (all rounds): {"200":300}
   invariant 60x200, all approved, v2: OK
   PASS (p95 <= 2000 ms)
 
 [contended] beforeCommit=none
-  round 1: p50=205.8 p95=206.7 max=206.7 ms
-  round 2: p50=263.3 p95=267.5 max=268.9 ms
-  round 3: p50=384.9 p95=390.8 max=391.3 ms
-  round 4: p50=374.6 p95=380.4 max=381.1 ms
-  round 5: p50=332.9 p95=335.7 max=335.9 ms
-  pooled (300 samples): p50=332.9 p95=388.8 max=391.3 ms; worst per-round p95=390.8 ms
+  round 1: p50=158.1 p95=158.9 max=159.0 ms
+  round 2: p50=158.0 p95=159.8 max=159.9 ms
+  round 3: p50=150.4 p95=152.7 max=152.8 ms
+  round 4: p50=147.7 p95=148.8 max=148.8 ms
+  round 5: p50=163.1 p95=164.2 max=164.3 ms
+  pooled (300 samples): p50=157.7 p95=163.8 max=164.3 ms; worst per-round p95=164.2 ms
   status histogram (all rounds): {"200":5,"412":295}
   invariant exactly 1x200 + 59x412, single approval, v2: OK
   PASS (p95 <= 2000 ms)
 
 [distinct] beforeCommit=20 ms simulated I/O
-  round 1: p50=485.0 p95=491.6 max=492.7 ms
-  round 2: p50=412.0 p95=414.4 max=414.8 ms
-  round 3: p50=307.6 p95=318.1 max=319.9 ms
-  round 4: p50=361.2 p95=365.8 max=366.0 ms
-  round 5: p50=424.9 p95=439.3 max=439.6 ms
-  pooled (300 samples): p50=402.1 p95=487.3 max=492.7 ms; worst per-round p95=491.6 ms
+  round 1: p50=170.8 p95=174.0 max=174.1 ms
+  round 2: p50=168.4 p95=174.1 max=174.2 ms
+  round 3: p50=158.9 p95=160.1 max=160.2 ms
+  round 4: p50=166.6 p95=171.4 max=171.8 ms
+  round 5: p50=146.7 p95=147.6 max=147.7 ms
+  pooled (300 samples): p50=166.6 p95=173.9 max=174.2 ms; worst per-round p95=174.1 ms
   status histogram (all rounds): {"200":300}
   invariant 60x200, all approved, v2: OK
   PASS (p95 <= 2000 ms)
 
 [contended] beforeCommit=20 ms simulated I/O
-  round 1: p50=438.3 p95=446.7 max=447.6 ms
-  round 2: p50=379.5 p95=383.4 max=383.8 ms
-  round 3: p50=387.6 p95=400.3 max=400.8 ms
-  round 4: p50=509.4 p95=518.4 max=518.7 ms
-  round 5: p50=439.5 p95=441.2 max=441.5 ms
-  pooled (300 samples): p50=426.1 p95=516.4 max=518.7 ms; worst per-round p95=518.4 ms
+  round 1: p50=155.7 p95=155.9 max=156.0 ms
+  round 2: p50=158.9 p95=159.3 max=159.4 ms
+  round 3: p50=169.0 p95=169.6 max=169.7 ms
+  round 4: p50=146.4 p95=147.5 max=147.6 ms
+  round 5: p50=143.1 p95=145.6 max=145.8 ms
+  pooled (300 samples): p50=152.8 p95=169.3 max=169.7 ms; worst per-round p95=169.6 ms
   status histogram (all rounds): {"200":5,"412":295}
   invariant exactly 1x200 + 59x412, single approval, v2: OK
   PASS (p95 <= 2000 ms)

@@ -1,17 +1,17 @@
-# 05-coverage.log
-date: 2026-11-16T15:07:46Z
+# 05-coverage.log (rerun after R7 fix + reviewer fixes)
+date: 2026-11-16T15:46:38Z
 node: v24.22.0
-HEAD: e9b8afd7be2d0c736ffc4c60094d5b9e71e5636e
+HEAD: 592b2859732dbbaa5778bc2a031b9900a66d19c4
 command: cd identity-server && npm run build && node --test --experimental-test-coverage --test-coverage-include="dist/src/review/**" dist/test/review-*.test.js
 
-ℹ tests 20
+ℹ tests 24
 ℹ suites 0
-ℹ pass 20
+ℹ pass 24
 ℹ fail 0
 ℹ cancelled 0
 ℹ skipped 0
 ℹ todo 0
-ℹ duration_ms 1535.3652
+ℹ duration_ms 1020.2054
 ℹ start of coverage report
 ℹ --------------------------------------------------------------------
 ℹ file                | line % | branch % | funcs % | uncovered lines
@@ -20,28 +20,29 @@ command: cd identity-server && npm run build && node --test --experimental-test-
 ℹ  src                |        |          |         | 
 ℹ   review            |        |          |         | 
 ℹ    review-store.js  | 100.00 |   100.00 |  100.00 | 
-ℹ    review.routes.js |  96.95 |    81.82 |   92.86 | 35-36 68-69
+ℹ    review.routes.js |  97.33 |    85.14 |   92.86 | 82-85
 ℹ --------------------------------------------------------------------
-ℹ all files           |  97.91 |    86.36 |   95.24 | 
+ℹ all files           |  98.10 |    88.54 |   95.24 | 
 ℹ --------------------------------------------------------------------
 ℹ end of coverage report
 
-## Mapping of uncovered lines (source maps are off: tsconfig has no sourceMap, left unchanged; mapped by reading dist/src/review/review.routes.js)
+## Mapping of uncovered lines (source maps are off: tsconfig has no sourceMap; mapped by reading dist/src/review/review.routes.js)
 - review-store.js: 100% line / branch / function.
-- review.routes.js 96.95% line, 81.82% branch, 92.86% func. Uncovered:
-  - 35-36: guard() catch block, i.e. resolveActor throws/rejects -> 500 {error:"INTERNAL"}. No test makes resolveActor throw (NFR3 fail-closed on auth error path untested).
-  - 68-69: PATCH handler catch block, i.e. beforeCommit/store throws during admin PATCH -> 500. TC-15 only exercises the throw on the decision path.
-  The 81.82% branch figure is the same two catch paths plus the unexercised default `now` clock branch (tests always inject now).
+- review.routes.js 97.33% line, 85.14% branch, 92.86% func. Uncovered: dist lines 82-85 = the PATCH handler catch block (AlreadyDecided -> 409 from inside the CAS mutate, and the generic 500 INTERNAL). Not exercised:
+  - the in-CAS AlreadyDecided branch is a defensive re-check: a decision always bumps version, so a stale If-Match is rejected (412) before status can differ at equal version; kept as defense in depth.
+  - PATCH 500 (beforeCommit/store throws on the admin PATCH path): TC-15 exercises the throw on the decision path only.
+- Compared with the previous run (96.95 / 81.82 / 92.86; uncovered 35-36 and 68-69): guard() catch (resolveActor throws) is now covered by TC-22. The remaining branch gap also includes the default `now` clock (tests always inject now).
 
 ## Risk coverage (from docs/bt3-vt111/spec.md + test names)
 | Requirement | Covering TCs | Covered? |
 |---|---|---|
 | AC1 read, ETag, 401/403/404 | TC-01, TC-02 | yes |
 | AC2 approve keeps data byte-identical, decidedBy/At, v2 | TC-05 (also TC-17 store copies) | yes |
-| AC3 reviewer cannot PATCH; admin cannot decide | TC-03, TC-04, TC-07 | yes |
+| AC3 reviewer cannot PATCH; admin cannot decide; decided data frozen | TC-03, TC-04, TC-07, TC-21 | yes |
 | AC4 exactly one winner (N=2, N=60), no lost update | TC-08, TC-09, TC-10, TC-11, TC-16 | yes |
-| AC5 idempotent replay / 422 / 409 / missing key | TC-12, TC-13, TC-14, TC-15, TC-18; missing-key 400 in TC-06 | yes |
-| NFR1 p95 <= 2.0 s at 60 concurrent | 07-load.log (harness, not a TC); TC-09 checks correctness only | yes (harness) |
-| NFR2 offline, deterministic, < 10 s | 06-flaky.log; suite ~1.4 s | yes |
-| NFR3 deny by default (401/403, role from resolveActor only) | TC-02, TC-03, TC-04 | mostly; resolveActor-throws path untested (lines 35-36); no-token-logging verified by grep only (no console/authorization use in src/review) |
-| Invariant: data never changed by a decision; never "approved + new data" | TC-05, TC-11, TC-17 | yes |
+| AC5 idempotent replay / 422 / 409 / missing key | TC-12, TC-13, TC-14, TC-15, TC-18, TC-19, TC-20; missing-key 400 in TC-06 | yes |
+| NFR1 p95 <= 2.0 s at 60 concurrent | 07-load.log (harness gates on worst per-round p95, not a TC); TC-09 checks correctness only | yes (harness) |
+| NFR2 offline, deterministic, < 10 s | 06-flaky.log; suite ~1.5 s | yes |
+| NFR3 deny by default (401/403, role from resolveActor only; resolver error -> 500 no leak) | TC-02, TC-03, TC-04, TC-22 | yes; no-token-logging verified by grep only (no console/authorization use in src/review) |
+| Invariant: data never changed by a decision; decided item data frozen; never "approved + new data" | TC-05, TC-11, TC-17, TC-21 | yes |
+| Residual: PATCH 500 path (beforeCommit throws on PATCH) and in-CAS AlreadyDecided | none | no (see uncovered lines 82-85) |

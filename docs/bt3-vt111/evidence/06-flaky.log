@@ -1,60 +1,25 @@
-# 06-flaky.log
-date: 2026-11-16T15:07:49Z
+# 06-flaky.log (rerun after R7 fix + reviewer fixes)
+date: 2026-11-16T15:47:12Z
 node: v24.22.0
-HEAD: e9b8afd7be2d0c736ffc4c60094d5b9e71e5636e
-command: see per-check commands below
+HEAD: 592b2859732dbbaa5778bc2a031b9900a66d19c4
+command: bash flaky.sh (sections below show each command)
 
-## (a) repetition: 30x node --test dist/test/review-*.test.js
-runs=30 failures=0 wall-time min=1433ms max=1747ms (includes node startup)
+## (a) 30x sequential: node --test dist/test/review-*.test.js
+runs=30 failures=0 wall-time min=950ms max=1103ms (includes node startup)
 
-## (b) shared state / order
-  --test-concurrency=...      specify test runner concurrency
-  --test-random-seed=...      seed used to randomize test execution
-  --test-randomize            run tests in a random order
--- --test-concurrency=4
-ℹ tests 20
-ℹ pass 20
-ℹ fail 0
--- isolated review-authz
-ℹ tests 7 ℹ pass 7 ℹ fail 0 
--- isolated review-concurrency
-ℹ tests 8 ℹ pass 8 ℹ fail 0 
--- isolated review-store
-ℹ tests 5 ℹ pass 5 ℹ fail 0 
--- reversed file order
-ℹ tests 20 ℹ pass 20 ℹ fail 0 
--- --test-isolation=none (shared process, one file order)
-ℹ tests 20 ℹ pass 20 ℹ fail 0 
+## (b) randomized order: --test-randomize, 5 seeds
+seed 1: exit=0 ℹ tests 24 ℹ pass 24 ℹ fail 0 ℹ cancelled 0 
+seed 2: exit=0 ℹ tests 24 ℹ pass 24 ℹ fail 0 ℹ cancelled 0 
+seed 3: exit=0 ℹ tests 24 ℹ pass 24 ℹ fail 0 ℹ cancelled 0 
+seed 4: exit=0 ℹ tests 24 ℹ pass 24 ℹ fail 0 ℹ cancelled 0 
+seed 5: exit=0 ℹ tests 24 ℹ pass 24 ℹ fail 0 ℹ cancelled 0 
 
-## (c) timing: grep setTimeout/Date.now/Math.random in review tests+helpers
-NONE FOUND
-barrier uses:
-7
--- 30x under CPU stress: 4 parallel loops x 8 runs (32 runs) + 4 busy-loop burners
-failures per worker: 0 0 0 0 
+## (c) --test-concurrency=4
+exit=0 ℹ tests 24 ℹ pass 24 ℹ fail 0 ℹ cancelled 0 
 
-## (d) clock injection
-24:  now?: () => Date;
-37:  const now = options.now ?? (() => new Date());
-40:  const send = (res: Response, status: number, body: unknown, item?: ReviewItem) => {
-47:  const asString = (v: unknown) => (typeof v === "string" ? v : undefined);
-126:        d.decidedAt = now().toISOString();
-83:    now: () => new Date(FIXED_NOW),
+## (d) 4 parallel workers x 5 runs under CPU load (4 busy-loop burners)
+failures per worker (5 runs each, 20 runs total): 0 0 0 0
 
--- --test-randomize, 10 seeds (node --test --test-randomize --test-random-seed=N dist/test/review-*.test.js)
-seed 1: ℹ pass 20 ℹ fail 0 
-seed 2: ℹ pass 20 ℹ fail 0 
-seed 3: ℹ pass 20 ℹ fail 0 
-seed 4: ℹ pass 20 ℹ fail 0 
-seed 5: ℹ pass 20 ℹ fail 0 
-seed 6: ℹ pass 20 ℹ fail 0 
-seed 7: ℹ pass 20 ℹ fail 0 
-seed 8: ℹ pass 20 ℹ fail 0 
-seed 9: ℹ pass 20 ℹ fail 0 
-seed 10: ℹ pass 20 ℹ fail 0 
-
-## Summary: risk and mitigation
-- 30 sequential + 32 CPU-stressed runs (4 parallel workers, 4 busy-loop burners) + 10 randomized orders + per-file/reversed/shared-process/concurrency=4 runs: 0 failures.
-- Race tests (TC-08..11, 14) synchronise with createBarrier/deferred (promise gates), not sleeps; no setTimeout, Date.now, Math.random or performance in review tests/helpers.
-- Clock injected: createReviewRouter({now}) defaults to new Date() only when not given; helpers pass a fixed FIXED_NOW, so decidedAt is deterministic.
-- Residual risk: each test builds its own store + app on port 0 (no shared state, no fixed port). Per-test timeouts (10-20 s) bound hangs; a barrier that never fills would hang to timeout rather than flake. Real loopback HTTP means a pathological OS socket exhaustion could still fail, not observed.
+## (e) timing/nondeterminism grep in review tests+helpers (setTimeout/Date.now/Math.random/performance)
+test/review-concurrency.test.ts:138:    new Promise<null>((resolve) => { deadline = setTimeout(() => resolve(null), 2_000); }),
+(TC-14 uses a 2 s setTimeout only as a failure-path deadline; the passing path never waits on it)

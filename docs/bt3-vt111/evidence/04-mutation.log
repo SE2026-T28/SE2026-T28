@@ -545,3 +545,110 @@ Command: npm run build && node --test dist/test/review-*.test.js
 ℹ pass 22
 ℹ fail 0
 exit 0
+
+################################################################
+# RERUN after R7 fix + reviewer fixes (appended)
+Date: 2026-11-16T15:52:22Z   node: v24.22.0
+Submission HEAD: 592b2859732dbbaa5778bc2a031b9900a66d19c4
+Throwaway branch: mutation/bt3-vt111-rerun (created from 592b2859732dbbaa5778bc2a031b9900a66d19c4; mutant commits M1=dcadbb3 M2=9b80565 M3=df6f267, chained on that branch, never pushed; branch left for the student to delete).
+Method per mutant: git checkout <HEAD> -- review-store.ts; apply diff below; commit; cd identity-server && npm run build && node --test dist/test/review-*.test.js
+24 review tests total (TC-16 name is used by 3 tests). Counts are fail / cancelled / pass from the node:test summary.
+M1b (route pre-check removed) not rerun.
+
+SUMMARY (rerun)
+mutant | fail / cancelled / pass (of 24) | killing TCs | verdict
+M1 CAS check removed in compareAndSet | 6 / 0 / 18 | TC-08 TC-09 TC-10 TC-11 TC-16(x2) | KILLED
+M2 reserve() always {kind:new}        | 5 / 0 / 19 | TC-12 TC-13 TC-14 TC-18 TC-19 | KILLED
+M3 M1+M2                              | 11 / 0 / 13 | TC-08 TC-09 TC-10 TC-11 TC-12 TC-13 TC-14 TC-16(x2) TC-18 TC-19 | KILLED
+Differences vs the first run (7/4/11 fails, TC-14 cancelled): (1) TC-14 now FAILS BY ASSERTION in M2/M3 (duplicate requests unanswered within 2 s: 'no 409 guard', ~2.0 s) instead of being cancelled by the 10 s test timeout, so cancelled=0 everywhere; in the first run M2 showed '4 fail + TC-14 cancelled' (5 killed), M3 '11 fail' incl. TC-14 cancelled. (2) TC-06 no longer dies under M1: the R7 fix added a route-level version pre-check on PATCH, so a stale PATCH still gets 412 without the CAS; M1 therefore fails 6 (not 7) and the CAS guard is protected by the race tests TC-08/09/10/11 and unit TC-16.
+
+=================== M1 (rerun) ===================
+Diff (git diff SUBMISSION_HEAD):
+diff --git a/identity-server/src/review/review-store.ts b/identity-server/src/review/review-store.ts
+index 86dbbad..8481794 100644
+--- a/identity-server/src/review/review-store.ts
++++ b/identity-server/src/review/review-store.ts
+@@ -83,7 +83,7 @@ export class ReviewStore {
+     // section, so JS's single thread guarantees only one caller per version wins.
+     const current = this.items.get(id);
+     if (current === undefined) return { ok: false, reason: "not-found" };
+-    if (expectedVersion !== current.version) return { ok: false, reason: "conflict" };
++    // MUTANT: concurrency guard removed
+     const draft = structuredClone(current);
+     mutate(draft);
+     draft.version = expectedVersion + 1;
+Counts: ℹ tests 24 ℹ pass 18 ℹ fail 6 ℹ cancelled 0 
+Failing tests (with first assertion line):
+✖ TC-08 two concurrent decisions on v1 -> one 200, one 412, version 2, winner recorded
+✖ TC-09 sixty concurrent decisions on v1 -> 1x200, 59x412, version 2, single decidedBy
+✖ TC-10 two concurrent admin PATCH on v1 -> one 200, one 412, data equals winner payload exactly
+✖ TC-11 concurrent admin PATCH vs reviewer approve on v1 -> exactly one wins, never approved + new data
+✖ TC-16 compareAndSet: two synchronous calls with same expectedVersion -> ok then conflict, mutate once
+✖ TC-16 compareAndSet: wrong versions 0 and 2 on a v1 item -> conflict, mutate not called, item unchanged
+
+=================== M2 (rerun) ===================
+Diff (git diff SUBMISSION_HEAD):
+diff --git a/identity-server/src/review/review-store.ts b/identity-server/src/review/review-store.ts
+index 86dbbad..da25462 100644
+--- a/identity-server/src/review/review-store.ts
++++ b/identity-server/src/review/review-store.ts
+@@ -95,6 +95,11 @@ export class ReviewStore {
+   reserve(actorId: string, key: string, fingerprint: string): ReserveResult {
+     const k = JSON.stringify([actorId, key]);
+     const rec = this.idem.get(k);
++    // MUTANT: idempotency guard removed (always new)
++    if (Date.now() > 0) {
++      this.idem.set(k, { fingerprint });
++      return { kind: "new" };
++    }
+     if (rec === undefined) {
+       this.idem.set(k, { fingerprint });
+       return { kind: "new" };
+Counts: ℹ tests 24 ℹ pass 19 ℹ fail 5 ℹ cancelled 0 
+Failing tests (with first assertion line):
+✖ TC-12 replay same key + same fingerprint -> identical status/body, applied once, decidedAt unchanged
+✖ TC-13 same key, different fingerprint (other decision / other item) -> 422, state unchanged
+✖ TC-14 ten concurrent requests with same key -> applied once, in-flight ones 409, then replay 200
+✖ TC-18 idempotency: new -> in-flight -> replay, mismatch, release, keyed by actor
+✖ TC-19 replay restores ETag header (same ETag as the original 200)
+
+=================== M3 (rerun) ===================
+Diff (git diff SUBMISSION_HEAD):
+diff --git a/identity-server/src/review/review-store.ts b/identity-server/src/review/review-store.ts
+index 86dbbad..a5f3f30 100644
+--- a/identity-server/src/review/review-store.ts
++++ b/identity-server/src/review/review-store.ts
+@@ -83,7 +83,7 @@ export class ReviewStore {
+     // section, so JS's single thread guarantees only one caller per version wins.
+     const current = this.items.get(id);
+     if (current === undefined) return { ok: false, reason: "not-found" };
+-    if (expectedVersion !== current.version) return { ok: false, reason: "conflict" };
++    // MUTANT: concurrency guard removed
+     const draft = structuredClone(current);
+     mutate(draft);
+     draft.version = expectedVersion + 1;
+@@ -95,6 +95,11 @@ export class ReviewStore {
+   reserve(actorId: string, key: string, fingerprint: string): ReserveResult {
+     const k = JSON.stringify([actorId, key]);
+     const rec = this.idem.get(k);
++    // MUTANT: idempotency guard removed (always new)
++    if (Date.now() > 0) {
++      this.idem.set(k, { fingerprint });
++      return { kind: "new" };
++    }
+     if (rec === undefined) {
+       this.idem.set(k, { fingerprint });
+       return { kind: "new" };
+Counts: ℹ tests 24 ℹ pass 13 ℹ fail 11 ℹ cancelled 0 
+Failing tests (with first assertion line):
+✖ TC-08 two concurrent decisions on v1 -> one 200, one 412, version 2, winner recorded
+✖ TC-09 sixty concurrent decisions on v1 -> 1x200, 59x412, version 2, single decidedBy
+✖ TC-10 two concurrent admin PATCH on v1 -> one 200, one 412, data equals winner payload exactly
+✖ TC-11 concurrent admin PATCH vs reviewer approve on v1 -> exactly one wins, never approved + new data
+✖ TC-12 replay same key + same fingerprint -> identical status/body, applied once, decidedAt unchanged
+✖ TC-13 same key, different fingerprint (other decision / other item) -> 422, state unchanged
+✖ TC-14 ten concurrent requests with same key -> applied once, in-flight ones 409, then replay 200
+✖ TC-16 compareAndSet: two synchronous calls with same expectedVersion -> ok then conflict, mutate once
+✖ TC-16 compareAndSet: wrong versions 0 and 2 on a v1 item -> conflict, mutate not called, item unchanged
+✖ TC-18 idempotency: new -> in-flight -> replay, mismatch, release, keyed by actor
+✖ TC-19 replay restores ETag header (same ETag as the original 200)
