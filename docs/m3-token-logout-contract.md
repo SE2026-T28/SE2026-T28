@@ -1,0 +1,32 @@
+# M3 token, resource API và logout contract
+
+Owner: Quang (O4–O5). Baseline: `b8f400d` on `main`; Provider `oidc-provider@9.12.2`, React `oidc-client-ts@3.5.0`. This is the integration contract for issues #23–#26. Implementation evidence belongs in the M3 PR; this document alone is not acceptance evidence.
+
+## Authorization and protected API
+
+| Item | Contract |
+| --- | --- |
+| Public client | `app04-react-demo`, Authorization Code + PKCE S256, no client secret; issuer and callback remain the M2 values. |
+| API resource indicator and audience | `http://localhost:3000/api` (derive the origin from configured issuer). The React client requests this `resource` in authorization **and** token/refresh requests. No implicit default resource: an M2 request without `resource` retains its UserInfo access token. |
+| API permission | `api:read`, explicit consent. `openid profile email` remain OIDC scopes; `offline_access` is requested only for refresh. No `email_verified` or invented profile claims. |
+| Access Token | Opaque Bearer token managed by Provider, 300-second TTL. The protected API never decodes it as JWT. Resolve with Provider's `AccessToken.find(rawToken)` and require: present, unexpired, `clientId=app04-react-demo`, `aud` exactly the API resource, `scope` includes `api:read`, and a live grant/account. Missing/invalid/expired/revoked token → 401; valid token lacking `api:read` → 403. Never log the raw token. |
+| ID Token | JWT for the React OIDC client, verified as in M2. It is **not** accepted as an API bearer token. |
+
+The Provider's resource-indicator policy allows only the configured API resource for this public client; other resources fail with `invalid_target`. The React owner can use the library's `resource` option and `scope='openid profile email api:read offline_access'`; `oidc-client-ts@3.5.0` exposes `resource` for sign-in and refresh. The API owner should reject a UserInfo token or an ID Token even if it belongs to the same user.
+
+## Refresh and revocation
+
+- Enable the `refresh_token` grant only for the registered public client. Provider issues a Refresh Token only when the authorization grant includes `offline_access`; no refresh token for an M2 scope set without it. Consent is mandatory for newly requested scopes.
+- Refresh Token TTL: 3600 seconds; rotate on **every** successful refresh (`rotateRefreshToken: true`). The previous token must fail with `invalid_grant`; replay revokes its grant/token chain according to Provider behavior. Refresh cannot add scopes or change the API audience. Tests must include two concurrent refresh attempts and document the observed winner/loser outcome; an adapter must make `consume` atomic.
+- Enable the standard Discovery revocation endpoint. React calls revocation for its current Refresh Token before RP logout. A successful revocation invalidates that token's grant and associated Access Tokens in the Provider. An already issued Access Token is otherwise valid until expiry (at most 300 seconds); browser-side deletion alone does not revoke it.
+- React keeps tokens in `sessionStorage` (the M2 user store), never `localStorage`; clear client state and protected data on refresh failure, revocation, logout, or failed ID Token validation. This limits persistence but does not make a browser-held Refresh Token confidential. Do not place tokens in URL, logs, audit records, or error text.
+
+## RP-initiated logout
+
+Use `end_session_endpoint` from Discovery through `UserManager.signoutRedirect()`, with the current `id_token_hint`, `post_logout_redirect_uri=http://localhost:5173/` and library-managed `state`; then process the sign-out callback and clear client state. The Provider must end its browser session, reject an unregistered post-logout URI, and require login again on a fresh authorization request. If the pre-logout revocation request fails, still clear local state and complete RP logout, while reporting that previously issued Access Tokens may remain valid until their 300-second TTL. Do not claim that RP logout alone revokes Access Tokens.
+
+## Storage and ownership
+
+Quang owns the Provider configuration and PostgreSQL adapter for Provider artifacts, Grant and Session. It must implement the `oidc-provider@9.12.2` adapter methods (`upsert`, `find`, `findByUid`, `findByUserCode`, `consume`, `destroy`, `revokeByGrantId`) with expiry and atomic consume. Tests use the S3 isolated PostgreSQL harness. Persistent adapter state does not by itself make development cookies/signing keys production-safe; the production guard remains until key management is addressed.
+
+Nam owns MFA challenge creation/verification and must not call `interactionFinished` before MFA succeeds. The challenge binds to the same Provider interaction UID and browser context; Quang's interaction router completes login only after Nam returns a verified user UUID. Phương owns the protected API and audit; audit records contain event type, timestamp, actor/subject UUID when known, client ID and outcome, never password, MFA code/hash, authorization code or raw token. Changes to these interfaces are discussed in issues #23–#26 before implementation.
