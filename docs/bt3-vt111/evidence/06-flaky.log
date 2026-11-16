@@ -1,0 +1,25 @@
+# 06-flaky.log (rerun after R7 fix + reviewer fixes)
+date: 2026-11-16T15:47:12Z
+node: v24.22.0
+HEAD: 592b2859732dbbaa5778bc2a031b9900a66d19c4
+command: bash flaky.sh (sections below show each command)
+
+## (a) 30x sequential: node --test dist/test/review-*.test.js
+runs=30 failures=0 wall-time min=950ms max=1103ms (includes node startup)
+
+## (b) randomized order: --test-randomize, 5 seeds
+seed 1: exit=0 ℹ tests 24 ℹ pass 24 ℹ fail 0 ℹ cancelled 0 
+seed 2: exit=0 ℹ tests 24 ℹ pass 24 ℹ fail 0 ℹ cancelled 0 
+seed 3: exit=0 ℹ tests 24 ℹ pass 24 ℹ fail 0 ℹ cancelled 0 
+seed 4: exit=0 ℹ tests 24 ℹ pass 24 ℹ fail 0 ℹ cancelled 0 
+seed 5: exit=0 ℹ tests 24 ℹ pass 24 ℹ fail 0 ℹ cancelled 0 
+
+## (c) --test-concurrency=4
+exit=0 ℹ tests 24 ℹ pass 24 ℹ fail 0 ℹ cancelled 0 
+
+## (d) 4 parallel workers x 5 runs under CPU load (4 busy-loop burners)
+failures per worker (5 runs each, 20 runs total): 0 0 0 0
+
+## (e) timing/nondeterminism grep in review tests+helpers (setTimeout/Date.now/Math.random/performance)
+test/review-concurrency.test.ts:138:    new Promise<null>((resolve) => { deadline = setTimeout(() => resolve(null), 2_000); }),
+(TC-14 uses a 2 s setTimeout only as a failure-path deadline; the passing path never waits on it)

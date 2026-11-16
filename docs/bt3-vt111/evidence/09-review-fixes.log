@@ -1,0 +1,49 @@
+BT3 VT-111 review fixes (independent review): TC-21, TC-22, TC-14 hardening
+Date: 2026-11-16T15:42:06Z   node: v24.22.0
+Base HEAD: 039cd629fe0b52cb90f73cdfd2be70aff2a6bf7b
+Command: cd identity-server && npm run build && node --test dist/test/review-*.test.js
+
+=========== RED (tests added, src/review/review.routes.ts unchanged) ===========
+✔ TC-01 admin and reviewer GET -> 200 {item} with ETag "v1" (124.4161ms)
+✔ TC-02 GET without token -> 401, guest -> 403, unknown id -> 404 (40.597ms)
+✔ TC-03 reviewer PATCH -> 403, data unchanged (54.0588ms)
+✔ TC-04 admin POST decision -> 403 (separation of duties), item pending v1 (12.6595ms)
+✔ TC-05 reviewer approve/reject -> 200, decidedBy/At set, v2, data byte-identical (17.5424ms)
+✔ TC-06 status codes: 428 / 412 / 400 / 428 / 400, item never changes (26.2588ms)
+✔ TC-07 admin PATCH current -> 200 ETag v2; approve on already-decided item -> 409 (21.3286ms)
+✖ TC-21 admin PATCH on decided item -> 409 ALREADY_DECIDED, data/version/status unchanged (15.2871ms)
+✔ TC-22 resolveActor throws -> 500 INTERNAL without message leak, item unchanged (17.7556ms)
+✔ TC-08 two concurrent decisions on v1 -> one 200, one 412, version 2, winner recorded (145.3544ms)
+✔ TC-09 sixty concurrent decisions on v1 -> 1x200, 59x412, version 2, single decidedBy (200.618ms)
+✔ TC-10 two concurrent admin PATCH on v1 -> one 200, one 412, data equals winner payload exactly (33.7893ms)
+✔ TC-11 concurrent admin PATCH vs reviewer approve on v1 -> exactly one wins, never approved + new data (12.7211ms)
+✔ TC-12 replay same key + same fingerprint -> identical status/body, applied once, decidedAt unchanged (16.2751ms)
+✔ TC-13 same key, different fingerprint (other decision / other item) -> 422, state unchanged (13.2299ms)
+✔ TC-14 ten concurrent requests with same key -> applied once, in-flight ones 409, then replay 200 (30.6568ms)
+✔ TC-15 beforeCommit throws -> 500 without detail, item unchanged, key released, retry same key -> 200 (15.9218ms)
+✔ TC-19 replay restores ETag header (same ETag as the original 200) (13.196ms)
+✔ TC-20 key released after 412 allows retry with fresh If-Match (15.3344ms)
+✔ TC-16 compareAndSet: two synchronous calls with same expectedVersion -> ok then conflict, mutate once (2.4912ms)
+✔ TC-16 compareAndSet: wrong versions 0 and 2 on a v1 item -> conflict, mutate not called, item unchanged (0.929ms)
+✔ TC-16 compareAndSet: unknown id -> not-found, mutate not called (0.3215ms)
+✔ TC-17 store returns copies: editing get()/seed input/compareAndSet result never changes the store (0.5652ms)
+✔ TC-18 idempotency: new -> in-flight -> replay, mismatch, release, keyed by actor (0.602ms)
+ℹ tests 24
+ℹ pass 23
+ℹ fail 1
+ℹ cancelled 0
+✖ TC-21 admin PATCH on decided item -> 409 ALREADY_DECIDED, data/version/status unchanged (15.2871ms)
+First failing assertion:
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  200 !== 409
+TC-22 note: passes before the fix (characterization: guard() already catches resolveActor errors); logged as characterization, not red->green.
+
+=========== GREEN (after fix in review.routes.ts: status check before beforeCommit + re-check inside compareAndSet) ===========
+✔ TC-21 admin PATCH on decided item -> 409 ALREADY_DECIDED, data/version/status unchanged (6.8762ms)
+✔ TC-22 resolveActor throws -> 500 INTERNAL without message leak, item unchanged (13.2769ms)
+✔ TC-14 ten concurrent requests with same key -> applied once, in-flight ones 409, then replay 200 (26.5714ms)
+ℹ tests 24
+ℹ pass 24
+ℹ fail 0
+ℹ cancelled 0
+
