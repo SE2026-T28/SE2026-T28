@@ -2,6 +2,7 @@ import { createApp } from "./app.js";
 import { readConfig } from "./config.js";
 import { disconnectPrisma, getPrisma } from "./db/prisma.js";
 import { authenticateUser } from "./users/authentication.js";
+import { cleanupExpiredOidcArtifacts } from "./oidc/postgres-adapter.js";
 
 async function startServer(): Promise<void> {
   const config = readConfig();
@@ -14,12 +15,17 @@ async function startServer(): Promise<void> {
     console.log(`Identity Server listening at ${config.issuer}`);
     console.log(`Discovery: ${config.issuer}/.well-known/openid-configuration`);
   });
+  const cleanupTimer = setInterval(() => {
+    void cleanupExpiredOidcArtifacts().catch(() => console.error("OIDC artifact cleanup failed"));
+  }, 60 * 60 * 1000);
+  cleanupTimer.unref();
 
   let shuttingDown = false;
 
   const shutdown = (signal: NodeJS.Signals): void => {
     if (shuttingDown) return;
     shuttingDown = true;
+    clearInterval(cleanupTimer);
     console.log(`Received ${signal}; shutting down Identity Server...`);
 
     server.close((serverError) => {

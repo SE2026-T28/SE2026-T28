@@ -68,8 +68,8 @@ export function createApp(config: AppConfig, authenticateUser?: AuthenticateUser
     ],
     // Refresh grant is only enabled by oidc-provider when offline_access is advertised.
     // Preserve older deployments whose configured scopes predate M3.
-    scopes: [...new Set([...config.scopes, "offline_access", "api:read"])],
-    adapter: name => new PostgresOidcAdapter(name),
+    scopes: [...new Set([...config.scopes.filter(scope => scope !== "api:read"), "offline_access"])],
+    adapter: name => new PostgresOidcAdapter(name, config.adapterKey),
     ttl: { AccessToken: 300, RefreshToken: 3600 },
     rotateRefreshToken: true,
     claims: { email: ["email"] },
@@ -99,11 +99,12 @@ export function createApp(config: AppConfig, authenticateUser?: AuthenticateUser
           if (client.clientId !== config.clientId || resource !== `${config.issuer}/api`) {
             throw new errors.InvalidTarget();
           }
-          return { scope: "api:read", audience: `${config.issuer}/api`, accessTokenTTL: 300, accessTokenFormat: "opaque" };
+          return { scope: "api:read", audience: `${config.issuer}/api`, accessTokenFormat: "opaque" };
         },
       },
     },
   });
+  app.locals.oidcProvider = provider;
 
   app.use("/interaction", express.urlencoded({ extended: false, limit: "10kb" }), interactionRouter(provider, authenticateUser));
   app.use(provider.callback());

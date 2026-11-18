@@ -17,8 +17,8 @@ model User {
   @@map("users")
 }
 
-// One row per oidc-provider model/id. Adapter hashes lookup IDs before storage;
-// payloads still contain sensitive session/token metadata, so restrict DB access.
+// One row per oidc-provider model/id. Adapter hashes lookup IDs and indexed
+// identifiers, and encrypts payloads with a separately configured AES key.
 model OidcArtifact {
   model      String    @db.VarChar(64)
   id         String    @db.VarChar(512)

@@ -3,7 +3,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { test } from "node:test";
 import { assertManagedDatabase } from "../scripts/test-database.mjs";
 import { disconnectPrisma, getPrisma } from "../src/db/prisma.js";
-import { PostgresOidcAdapter } from "../src/oidc/postgres-adapter.js";
+import { PostgresOidcAdapter, cleanupExpiredOidcArtifacts } from "../src/oidc/postgres-adapter.js";
 
 test("PostgreSQL adapter persists lookup, expiry, atomic consume and grant revocation", async () => {
   assertManagedDatabase();
@@ -17,7 +17,10 @@ test("PostgreSQL adapter persists lookup, expiry, atomic consume and grant revoc
     await adapter.upsert(id, { jti: id, uid, userCode, grantId, kind: "AuthorizationCode" }, 60);
     assert.equal(await getPrisma().oidcArtifact.findUnique({ where: { model_id: { model: "AuthorizationCode", id } } }), null);
     const hashed = createHash("sha256").update(id).digest("hex");
-    assert.ok(await getPrisma().oidcArtifact.findUnique({ where: { model_id: { model: "AuthorizationCode", id: hashed } } }));
+    const stored = await getPrisma().oidcArtifact.findUnique({ where: { model_id: { model: "AuthorizationCode", id: hashed } } });
+    assert.ok(stored);
+    assert.ok(!JSON.stringify(stored).includes(id), "Database row must not expose the bearer value");
+    assert.ok(!JSON.stringify(stored).includes(uid), "Indexed identifiers must not be stored raw");
     assert.equal((await new PostgresOidcAdapter("AuthorizationCode").find(id))?.jti, id);
     assert.equal((await adapter.findByUid(uid))?.jti, id);
     assert.equal((await adapter.findByUserCode(userCode))?.jti, id);
@@ -29,8 +32,10 @@ test("PostgreSQL adapter persists lookup, expiry, atomic consume and grant revoc
     await Promise.all([adapter.revokeByGrantId(grantId), related.revokeByGrantId(grantId)]);
     assert.equal(await adapter.find(id), undefined);
     assert.equal(await related.find(`${id}-at`), undefined);
-    await adapter.upsert(id, { jti: id, kind: "AuthorizationCode" }, 0);
+    await adapter.upsert(id, { jti: id, kind: "AuthorizationCode" }, -1);
     assert.equal(await adapter.find(id), undefined);
+    assert.ok(await cleanupExpiredOidcArtifacts() >= 1);
+    assert.equal(await getPrisma().oidcArtifact.findUnique({ where: { model_id: { model: "AuthorizationCode", id: hashed } } }), null);
   } finally {
     await adapter.destroy(id);
     await related.destroy(`${id}-at`);

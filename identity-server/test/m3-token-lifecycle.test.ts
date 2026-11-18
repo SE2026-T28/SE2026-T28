@@ -31,52 +31,72 @@ test("M3: API resource, rotated refresh, revocation and RP logout", async () => 
     const formPost = (path: string, fields: Record<string, string>) => request(new URL(path, issuer), {
       method: "POST", headers: { "content-type": "application/x-www-form-urlencoded", connection: "close" }, body: new URLSearchParams(fields),
     });
-    const verifier = randomBytes(32).toString("base64url");
     const auth = new URL(`${issuer}/auth`);
     for (const [key, value] of Object.entries({
       client_id: "app04-react-demo", response_type: "code", redirect_uri: "http://localhost:5173/callback",
-      scope: "openid profile email api:read offline_access", resource, prompt: "consent", state: "m3-state", nonce: "m3-nonce",
-      code_challenge: createHash("sha256").update(verifier).digest("base64url"), code_challenge_method: "S256",
+      scope: "openid profile email api:read offline_access", resource, prompt: "consent",
+      code_challenge_method: "S256",
     })) auth.searchParams.set(key, value);
-    let response = await request(auth);
-    let callback: URL | undefined;
-    for (let step = 0; step < 12; step++) {
-      assert.equal(response.status, 303);
-      const next = new URL(response.headers.get("location")!, issuer);
-      if (next.origin !== issuer) { callback = next; break; }
-      if (next.pathname.startsWith("/interaction/")) {
-        const html = await (await request(next)).text();
-        const csrf = html.match(/name="csrf" value="([a-f0-9]+)"/)?.[1];
-        assert.ok(csrf);
-        response = html.includes('name="password"')
-          ? await formPost(`${next.pathname}/login`, { email, password, csrf })
-          : await formPost(`${next.pathname}/consent`, { allow: "yes", csrf });
-      } else response = await request(next);
-    }
-    assert.ok(callback);
-    assert.equal(callback.searchParams.get("state"), "m3-state");
-    const code = callback.searchParams.get("code");
-    assert.ok(code);
     const token = (fields: Record<string, string>) => fetch(`${issuer}/token`, {
       method: "POST", headers: { "content-type": "application/x-www-form-urlencoded", connection: "close" }, body: new URLSearchParams(fields),
     });
-    const first = await token({ grant_type: "authorization_code", client_id: "app04-react-demo", code,
-      redirect_uri: "http://localhost:5173/callback", code_verifier: verifier, resource });
-    assert.equal(first.status, 200);
-    const firstTokens = await first.json() as { access_token: string; refresh_token: string; id_token: string };
+    type TokenSet = { access_token: string; refresh_token: string; id_token: string; expires_in: number };
+    const issueTokens = async (state: string): Promise<TokenSet> => {
+      const verifier = randomBytes(32).toString("base64url");
+      const authorization = new URL(auth);
+      authorization.searchParams.set("state", state);
+      authorization.searchParams.set("nonce", randomBytes(16).toString("base64url"));
+      authorization.searchParams.set("code_challenge", createHash("sha256").update(verifier).digest("base64url"));
+      let response = await request(authorization);
+      let callback: URL | undefined;
+      for (let step = 0; step < 12; step++) {
+        assert.equal(response.status, 303);
+        const next = new URL(response.headers.get("location")!, issuer);
+        if (next.origin !== issuer) { callback = next; break; }
+        if (next.pathname.startsWith("/interaction/")) {
+          const html = await (await request(next)).text();
+          const csrf = html.match(/name="csrf" value="([a-f0-9]+)"/)?.[1];
+          assert.ok(csrf);
+          response = html.includes('name="password"')
+            ? await formPost(`${next.pathname}/login`, { email, password, csrf })
+            : await formPost(`${next.pathname}/consent`, { allow: "yes", csrf });
+        } else response = await request(next);
+      }
+      assert.ok(callback);
+      assert.equal(callback.searchParams.get("state"), state);
+      const code = callback.searchParams.get("code");
+      assert.ok(code);
+      const issued = await token({ grant_type: "authorization_code", client_id: "app04-react-demo", code,
+        redirect_uri: "http://localhost:5173/callback", code_verifier: verifier, resource });
+      assert.equal(issued.status, 200);
+      return await issued.json() as TokenSet;
+    };
+    const firstTokens = await issueTokens("m3-state");
     assert.ok(firstTokens.access_token && firstTokens.refresh_token && firstTokens.id_token);
+    assert.equal(firstTokens.expires_in, 300);
+    assert.ok(!firstTokens.access_token.includes("."), "API token must be opaque, not a JWT");
+    const apiToken = await context.getProvider().AccessToken.find(firstTokens.access_token);
+    assert.ok(apiToken);
+    assert.equal(apiToken.aud, resource);
+    assert.ok(apiToken.scope?.split(" ").includes("api:read"));
+    assert.equal(apiToken.clientId, "app04-react-demo");
     await context.restart(); // new Provider instance, same PostgreSQL and cookie key
     const sessionAuth = new URL(auth);
     sessionAuth.searchParams.set("scope", "openid email");
     sessionAuth.searchParams.delete("resource");
     sessionAuth.searchParams.delete("prompt");
     sessionAuth.searchParams.set("state", "m3-restart-state");
+    sessionAuth.searchParams.set("nonce", randomBytes(16).toString("base64url"));
+    sessionAuth.searchParams.set("code_challenge", createHash("sha256").update(randomBytes(32).toString("base64url")).digest("base64url"));
     const resumed = await request(sessionAuth);
     assert.equal(resumed.status, 303);
     const resumedLocation = new URL(resumed.headers.get("location")!, issuer);
     if (resumedLocation.pathname.startsWith("/interaction/")) {
       const resumedForm = await (await request(resumedLocation)).text();
       assert.ok(!resumedForm.includes('name="password"'), "Session should persist across Provider restart");
+    } else {
+      assert.equal(resumedLocation.origin + resumedLocation.pathname, "http://localhost:5173/callback");
+      assert.ok(resumedLocation.searchParams.get("code"), "Restarted session must issue a code");
     }
     const refresh = (refreshToken: string) => token({ grant_type: "refresh_token", client_id: "app04-react-demo", refresh_token: refreshToken, resource });
     const second = await refresh(firstTokens.refresh_token);
@@ -84,9 +104,7 @@ test("M3: API resource, rotated refresh, revocation and RP logout", async () => 
     const secondTokens = await second.json() as { refresh_token: string; access_token: string; id_token?: string };
     assert.ok(secondTokens.refresh_token && secondTokens.access_token && secondTokens.id_token);
     assert.notEqual(secondTokens.refresh_token, firstTokens.refresh_token);
-    const replay = await refresh(firstTokens.refresh_token);
-    assert.equal(replay.status, 400);
-    assert.equal((await replay.json() as { error: string }).error, "invalid_grant");
+    // Revoke a live grant; RFC 7009 returns 200 even for an already dead token.
     const revoke = await fetch(`${issuer}/token/revocation`, { method: "POST",
       headers: { "content-type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams({ client_id: "app04-react-demo", token: secondTokens.refresh_token, token_type_hint: "refresh_token" }) });
@@ -94,10 +112,30 @@ test("M3: API resource, rotated refresh, revocation and RP logout", async () => 
     const revoked = await refresh(secondTokens.refresh_token);
     assert.equal(revoked.status, 400);
     assert.equal((await revoked.json() as { error: string }).error, "invalid_grant");
+    assert.equal(await context.getProvider().AccessToken.find(secondTokens.access_token), undefined);
+    const replayGrant = await issueTokens("m3-replay-state");
+    const rotated = await refresh(replayGrant.refresh_token);
+    assert.equal(rotated.status, 200);
+    const rotatedTokens = await rotated.json() as TokenSet;
+    const replay = await refresh(replayGrant.refresh_token);
+    assert.equal(replay.status, 400);
+    assert.equal((await replay.json() as { error: string }).error, "invalid_grant");
+    const replayKilledSuccessor = await refresh(rotatedTokens.refresh_token);
+    assert.equal(replayKilledSuccessor.status, 400);
+    assert.equal((await replayKilledSuccessor.json() as { error: string }).error, "invalid_grant");
+    const raceGrant = await issueTokens("m3-race-state");
+    const raced = await Promise.all([refresh(raceGrant.refresh_token), refresh(raceGrant.refresh_token)]);
+    assert.deepEqual(raced.map(result => result.status).sort(), [200, 400]);
+    const loser = raced.find(result => result.status === 400)!;
+    assert.equal((await loser.json() as { error: string }).error, "invalid_grant");
+    const winner = await raced.find(result => result.status === 200)!.json() as TokenSet;
+    assert.ok(winner.refresh_token);
+    const winnerContinues = await refresh(winner.refresh_token);
+    assert.equal(winnerContinues.status, 200, "Losing concurrent request must not revoke the winner's grant");
     const discovery = await (await fetch(`${issuer}/.well-known/openid-configuration`)).json() as { end_session_endpoint: string };
     assert.ok(discovery.end_session_endpoint);
     const logout = new URL(discovery.end_session_endpoint);
-    logout.searchParams.set("id_token_hint", secondTokens.id_token);
+    logout.searchParams.set("id_token_hint", raceGrant.id_token);
     logout.searchParams.set("post_logout_redirect_uri", "http://localhost:5173/");
     const unregistered = new URL(logout);
     unregistered.searchParams.set("post_logout_redirect_uri", "http://localhost:5173/unregistered");

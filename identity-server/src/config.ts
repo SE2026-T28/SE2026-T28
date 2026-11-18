@@ -7,6 +7,7 @@ export interface AppConfig {
   scopes: string[];
   corsOrigin: string;
   cookieKeys?: string[];
+  adapterKey?: string;
 }
 
 function required(env: NodeJS.ProcessEnv, name: string): string {
@@ -55,6 +56,8 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   if (cookieKeys?.length && cookieKeys.some(value => !/^[a-f0-9]{64}$/i.test(value))) {
     throw new Error("OIDC_COOKIE_KEYS must contain comma-separated 32-byte hex keys");
   }
+  const adapterKey = env.OIDC_ADAPTER_KEY?.trim();
+  if (adapterKey && !/^[a-f0-9]{64}$/i.test(adapterKey)) throw new Error("OIDC_ADAPTER_KEY must be a 32-byte hex key");
 
   return {
     port,
@@ -65,5 +68,6 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     scopes,
     corsOrigin: cors.origin,
     cookieKeys: cookieKeys?.length ? cookieKeys : undefined,
+    adapterKey: adapterKey || undefined,
   };
 }

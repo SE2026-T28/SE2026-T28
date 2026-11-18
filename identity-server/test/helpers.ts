@@ -3,6 +3,7 @@ import { createServer } from "node:net";
 import { randomBytes } from "node:crypto";
 import type { AddressInfo } from "node:net";
 import type { Server } from "node:http";
+import type { Provider } from "oidc-provider";
 import { assertManagedDatabase } from "../scripts/test-database.mjs";
 import { createApp } from "../src/app.js";
 import { disconnectPrisma, getPrisma } from "../src/db/prisma.js";
@@ -45,15 +46,19 @@ export async function createIntegrationTestContext(authenticateUser?: Parameters
       port, issuer, clientId: "app04-react-demo", redirectUri: "http://localhost:5173/callback",
       postLogoutRedirectUri: "http://localhost:5173/", scopes: ["openid", "profile", "email"], corsOrigin: "http://localhost:5173",
       cookieKeys: [randomBytes(32).toString("hex")],
+      adapterKey: randomBytes(32).toString("hex"),
     };
-    server = createApp(config, authenticateUser).listen(port);
+    let app = createApp(config, authenticateUser);
+    server = app.listen(port);
     await once(server, "listening");
     const restart = async () => {
       if (server?.listening) await new Promise<void>((resolve, reject) => server!.close(error => error ? reject(error) : resolve()));
-      server = createApp(config, authenticateUser).listen(port);
+      app = createApp(config, authenticateUser);
+      server = app.listen(port);
       await once(server, "listening");
     };
-    return { baseUrl: issuer, fixtures, close, restart };
+    const getProvider = (): Provider => app.locals.oidcProvider as Provider;
+    return { baseUrl: issuer, fixtures, close, restart, getProvider };
   } catch (error) {
     await close();
     throw error;
