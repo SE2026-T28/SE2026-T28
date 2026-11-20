@@ -1,4 +1,5 @@
-import { ErrorResponse, type UserManager } from "oidc-client-ts";
+import { decodeJwt } from "jose";
+import { ErrorResponse, type User, type UserManager } from "oidc-client-ts";
 import {
   resolveRemoteKeys,
   verifyIdToken,
@@ -64,8 +65,24 @@ function randomNonce(): string {
 }
 
 // The library keeps the nonce in its per-state record; handleCallback reads it back from there.
-export async function login(um: UserManager): Promise<void> {
-  await um.signinRedirect({ nonce: randomNonce() });
+// resource (RFC 8707) goes on the authorization request AND the code exchange; prompt=consent is
+// required or oidc-provider drops offline_access (no refresh token).
+export async function login(um: UserManager, apiResource: string): Promise<void> {
+  // flags left by an earlier logout (page restored from bfcache) must not survive into a new login:
+  // a later reload would otherwise treat it as a logout return and drop the valid session
+  try {
+    window.sessionStorage.removeItem(LOGOUT_PENDING_KEY);
+    window.sessionStorage.removeItem(LOGOUT_WARNING_KEY);
+  } catch {
+    // storage unavailable: nothing to clear
+  }
+  logoutActive = false; // a new login supersedes a logout that left this page frozen in bfcache
+  await um.signinRedirect({
+    nonce: randomNonce(),
+    prompt: "consent",
+    resource: apiResource,
+    extraTokenParams: { resource: apiResource },
+  });
 }
 
 async function sha256Hex(text: string): Promise<string> {
@@ -249,10 +266,245 @@ export function handleCallbackOnce(
   return p;
 }
 
-export async function logout(
+export async function clearSession(
   um: UserManager,
   storage: Storage = window.sessionStorage,
 ): Promise<void> {
   storage.removeItem(VERIFIED_KEY);
-  await um.removeUser(); // local only; RP-initiated logout is C5
+  await um.removeUser().catch(() => {});
+}
+
+// ---- C4: refresh ----------------------------------------------------------------------------
+
+export type RefreshResult = { ok: true; accessToken: string } | { ok: false };
+
+const EXPIRY_SKEW_MS = 5_000;
+
+export function isAccessTokenExpired(user: User, nowMs: number = Date.now()): boolean {
+  return user.expires_at !== undefined && user.expires_at * 1000 <= nowMs + EXPIRY_SKEW_MS;
+}
+
+let refreshInflight: Promise<RefreshResult> | null = null;
+// Set once logout() has taken over: no new refresh may start or write session state afterwards.
+let logoutActive = false;
+
+// A logout that navigated away can leave this page frozen in bfcache with the guard still set.
+// When such a page is restored the logout is over: the app calls this before re-checking the session.
+export function endLogoutGuard(): void {
+  logoutActive = false;
+}
+
+export function resetRefreshForTests(): void {
+  refreshInflight = null;
+  logoutActive = false;
+}
+
+// Single-flight: refresh tokens rotate, so two parallel refreshes would make the loser fail with
+// invalid_grant. `staleToken` is the access token the caller just got a 401 for: when the stored
+// token already differs (a refresh finished between the 401 and this call) it is reused.
+export function refreshSession(
+  um: UserManager,
+  apiResource: string,
+  expectedSub: string,
+  deps: SessionDeps = {},
+  staleToken?: string,
+): Promise<RefreshResult> {
+  if (refreshInflight) return refreshInflight;
+  if (logoutActive) return Promise.resolve({ ok: false }); // logging out: never rotate/restore tokens
+  const p: Promise<RefreshResult> = (async (): Promise<RefreshResult> => {
+    if (staleToken) {
+      const current = await um.getUser().catch(() => null);
+      if (
+        current?.access_token &&
+        current.access_token !== staleToken &&
+        !isAccessTokenExpired(current)
+      ) {
+        return { ok: true, accessToken: current.access_token };
+      }
+    }
+    return doRefresh(um, apiResource, expectedSub, deps);
+  })().finally(() => {
+    if (refreshInflight === p) refreshInflight = null;
+  });
+  refreshInflight = p;
+  return p;
+}
+
+async function doRefresh(
+  um: UserManager,
+  apiResource: string,
+  expectedSub: string,
+  deps: SessionDeps,
+): Promise<RefreshResult> {
+  const storage = deps.storage ?? window.sessionStorage;
+  const failed = async (): Promise<RefreshResult> => {
+    await clearSession(um, storage); // revoked / expired / unverifiable: never keep it
+    return { ok: false };
+  };
+  const before = await um.getUser().catch(() => null);
+  if (!before?.refresh_token) return failed();
+  let user: User | null;
+  try {
+    user = await um.signinSilent({
+      resource: apiResource,
+      extraTokenParams: { resource: apiResource },
+    });
+  } catch {
+    return failed(); // invalid_grant, revoked, network: details are never surfaced
+  }
+  if (logoutActive) {
+    // logout() stopped waiting for this refresh: the library may already have stored the new user
+    await um.removeUser().catch(() => {});
+    return { ok: false };
+  }
+  if (!user?.access_token || !user.id_token) return failed();
+  try {
+    const marker = storage.getItem(VERIFIED_KEY);
+    const digest = await sha256Hex(user.id_token);
+    if (marker !== digest) {
+      await verifyRefreshedIdToken(um, user.id_token, expectedSub, before.id_token, deps);
+      // logout() waits for in-flight refreshes, so this only triggers if one slipped past it:
+      // never re-create the verified marker once logout owns the session
+      if (logoutActive) return { ok: false };
+      storage.setItem(VERIFIED_KEY, digest);
+    }
+  } catch {
+    return failed();
+  }
+  return { ok: true, accessToken: user.access_token };
+}
+
+// New ID Token from a refresh response: full verification, except that the nonce is optional
+// (OIDC Core 12.2). When a nonce IS present it must equal the original ID Token's nonce, and the
+// sub must be the one already verified. Our own sub check is independent of the library's.
+export async function verifyRefreshedIdToken(
+  um: UserManager,
+  idToken: string,
+  expectedSub: string,
+  originalIdToken: string | undefined,
+  deps: SessionDeps = {},
+): Promise<void> {
+  const resolveKeys = deps.resolveKeys ?? resolveRemoteKeys;
+  const { keys, algorithms } = await resolveKeys(um);
+  const claims = await verifyIdToken(idToken, {
+    keys,
+    algorithms,
+    issuer: um.settings.authority,
+    clientId: um.settings.client_id,
+    now: deps.now,
+  });
+  if (claims.sub !== expectedSub) throw new VerifyError("token_invalid");
+  if (claims.nonce !== undefined) {
+    let originalNonce: unknown;
+    try {
+      originalNonce = originalIdToken ? decodeJwt(originalIdToken).nonce : undefined;
+    } catch {
+      originalNonce = undefined;
+    }
+    if (typeof originalNonce !== "string" || !originalNonce || claims.nonce !== originalNonce) {
+      throw new VerifyError("nonce_mismatch");
+    }
+  }
+}
+
+// ---- C5: logout -----------------------------------------------------------------------------
+
+export const LOGOUT_PENDING_KEY = "app04.logout.pending"; // set just before RP-initiated logout
+export const LOGOUT_WARNING_KEY = "app04.logout.revoke_failed"; // non-sensitive flag, no token text
+
+export type LogoutOutcome = "redirected" | "local_only";
+
+// Upper bound for waiting on an in-flight refresh before logout proceeds anyway (hung token endpoint).
+export const LOGOUT_REFRESH_WAIT_MS = 5000;
+
+// Order matters: (1) revoke at the Provider, (2) capture id_token + wipe client state,
+// (3) end the Provider session. RP logout alone never revokes tokens.
+export async function logout(
+  um: UserManager,
+  storage: Storage = window.sessionStorage,
+): Promise<LogoutOutcome> {
+  // A refresh in flight rotates the refresh token and rewrites the stored user. Let it finish
+  // (its result is irrelevant), so we revoke the CURRENT token and nothing is written after we clear.
+  // The wait is bounded: a hung token endpoint must not leave the user stuck on "Logging out…".
+  // After the timeout logoutActive stops the late refresh from writing anything (see doRefresh).
+  let timedOut = false;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<void>((resolve) => {
+    timer = setTimeout(() => {
+      timedOut = true;
+      resolve();
+    }, LOGOUT_REFRESH_WAIT_MS);
+  });
+  try {
+    while (refreshInflight && !timedOut) {
+      await Promise.race([refreshInflight.then(noop, noop), timeout]);
+    }
+  } finally {
+    clearTimeout(timer);
+  }
+  logoutActive = true; // from here on refreshSession() refuses to start
+  try {
+    const user = await um.getUser().catch(() => null);
+    const idToken = user?.id_token;
+    let revoked = true;
+    try {
+      // revoking the refresh token also revokes its grant and the Access Tokens issued from it
+      if (user?.refresh_token) await um.revokeTokens(["refresh_token"]);
+      else if (user?.access_token) await um.revokeTokens(["access_token"]);
+    } catch {
+      revoked = false; // still log out; warn after the redirect returns
+    }
+    storage.removeItem(VERIFIED_KEY);
+    await um.removeUser().catch(() => {});
+    storage.removeItem(LOGOUT_WARNING_KEY);
+    if (!revoked) storage.setItem(LOGOUT_WARNING_KEY, "1");
+    storage.setItem(LOGOUT_PENDING_KEY, "1");
+    try {
+      // state: {} makes the library send a state it can match on return; the flow also works
+      // when the Provider does not echo it.
+      await um.signoutRedirect({ ...(idToken ? { id_token_hint: idToken } : {}), state: {} });
+      return "redirected"; // the guard stays set until navigation (or endLogoutGuard on bfcache restore)
+    } catch {
+      storage.removeItem(LOGOUT_PENDING_KEY);
+      logoutActive = false; // we stay on this page: a new login/refresh is possible again
+      await clearSession(um, storage); // nothing may have been written back meanwhile
+      return "local_only"; // e.g. Discovery has no end_session_endpoint
+    }
+  } catch (e) {
+    logoutActive = false; // logout itself threw (e.g. storage unavailable): do not leave the guard stuck
+    throw e;
+  }
+}
+
+function noop(): void {}
+
+export interface LogoutReturn {
+  returned: boolean;
+  revokeFailed: boolean;
+}
+
+// Called on the post_logout_redirect_uri. Local state is already gone; this only consumes our
+// flags, lets the library drop its signout state, and scrubs the address bar.
+export async function processLogoutReturn(
+  um: UserManager,
+  url: string,
+  storage: Storage = window.sessionStorage,
+): Promise<LogoutReturn> {
+  if (storage.getItem(LOGOUT_PENDING_KEY) !== "1") {
+    return { returned: false, revokeFailed: false };
+  }
+  const revokeFailed = storage.getItem(LOGOUT_WARNING_KEY) === "1";
+  storage.removeItem(LOGOUT_PENDING_KEY);
+  storage.removeItem(LOGOUT_WARNING_KEY);
+  const params = new URL(url).searchParams;
+  if (params.has("state")) {
+    try {
+      await um.signoutCallback(url);
+    } catch {
+      // unknown/expired state or Provider error: the user is already logged out locally
+    }
+  }
+  if (new URL(url).search !== "") window.history.replaceState(null, "", "/");
+  await clearSession(um, storage); // defensive: nothing may survive a logout
+  return { returned: true, revokeFailed };
 }

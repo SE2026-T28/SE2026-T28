@@ -20,7 +20,8 @@ const config: OidcConfig = {
   clientId: "app04-react-demo",
   redirectUri: "http://localhost:5173/callback",
   postLogoutRedirectUri: "http://localhost:5173/",
-  scope: "openid profile email",
+  scope: "openid profile email api:read offline_access",
+  apiResource: "http://localhost:3000/api",
 };
 
 const metadata = {
@@ -91,25 +92,31 @@ async function beginLogin() {
     ...window.location,
     assign,
   } as unknown as Location);
-  void login(getUserManager());
+  void login(getUserManager(), config.apiResource);
   await vi.waitFor(() => expect(assign).toHaveBeenCalled());
   spy.mockRestore();
   return new URL(assign.mock.calls[0][0] as string).searchParams;
 }
 
+const tokenCalls = (fetchMock: ReturnType<typeof vi.fn>) =>
+  fetchMock.mock.calls.filter(([u]) => String(u).endsWith("/token"));
+
+// Token endpoint answers the code exchange; the protected API answers with the matching sub.
 function stubTokenEndpoint(idToken: string) {
-  const fetchMock = vi.fn(
-    async () =>
-      new Response(
-        JSON.stringify({
-          access_token: "SECRET-ACCESS-TOKEN",
-          token_type: "Bearer",
-          id_token: idToken,
-          expires_in: 3600,
-        }),
-        { status: 200, headers: { "Content-Type": "application/json" } },
-      ),
-  );
+  const fetchMock = vi.fn(async (url: RequestInfo | URL) => {
+    if (String(url).endsWith("/protected/profile")) {
+      return new Response(JSON.stringify({ sub: "user-1" }), { status: 200 });
+    }
+    return new Response(
+      JSON.stringify({
+        access_token: "SECRET-ACCESS-TOKEN",
+        token_type: "Bearer",
+        id_token: idToken,
+        expires_in: 3600,
+      }),
+      { status: 200, headers: { "Content-Type": "application/json" } },
+    );
+  });
   vi.stubGlobal("fetch", fetchMock);
   return fetchMock;
 }
@@ -131,6 +138,7 @@ beforeEach(() => {
   window.history.pushState(null, "", "/");
   mocks.configError = null;
   resetRuntimeForTests();
+  vi.stubGlobal("fetch", vi.fn(async () => new Response("{}", { status: 500 }))); // no real network
 });
 
 afterEach(() => {
@@ -163,7 +171,7 @@ describe("Callback (StrictMode)", () => {
 
     await screen.findByText("Logged in");
     expect(screen.getByText("user-1")).toBeTruthy();
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(tokenCalls(fetchMock)).toHaveLength(1); // M3: the API call is a second fetch, the exchange stays one
     expect(window.sessionStorage.getItem(VERIFIED_KEY)).toBeTruthy();
     expectNoSecrets();
   });
@@ -213,7 +221,7 @@ describe("Callback (StrictMode)", () => {
       </StrictMode>,
     );
     expect(screen.getByText("Logged in")).toBeTruthy();
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(tokenCalls(fetchMock)).toHaveLength(1); // M3: the API call is a second fetch, the exchange stays one
   });
 });
 
