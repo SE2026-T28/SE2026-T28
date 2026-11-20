@@ -32,6 +32,21 @@ test("PostgreSQL adapter persists lookup, expiry, atomic consume and grant revoc
     await Promise.all([adapter.revokeByGrantId(grantId), related.revokeByGrantId(grantId)]);
     assert.equal(await adapter.find(id), undefined);
     assert.equal(await related.find(`${id}-at`), undefined);
+    // Refresh can finish consuming the old token before revocation, then try
+    // to persist its successor afterwards. The revocation fence must win.
+    await assert.rejects(related.upsert(`${id}-late-at`, { jti: `${id}-late-at`, grantId, kind: "AccessToken" }, 60), { error: "invalid_grant" });
+    assert.equal(await related.find(`${id}-late-at`), undefined);
+    const grant = new PostgresOidcAdapter("Grant");
+    await assert.rejects(grant.upsert(grantId, { jti: grantId, kind: "Grant" }, 60), { error: "invalid_grant" });
+    assert.equal(await grant.find(grantId), undefined);
+    const racingGrant = randomUUID();
+    const racingId = `${id}-racing-at`;
+    const race = await Promise.allSettled([
+      related.upsert(racingId, { jti: racingId, grantId: racingGrant, kind: "AccessToken" }, 60),
+      adapter.revokeByGrantId(racingGrant),
+    ]);
+    assert.equal(race[1].status, "fulfilled");
+    assert.equal(await related.find(racingId), undefined, "Concurrent upsert must not resurrect a revoked grant");
     await adapter.upsert(id, { jti: id, kind: "AuthorizationCode" }, -1);
     assert.equal(await adapter.find(id), undefined);
     assert.ok(await cleanupExpiredOidcArtifacts() >= 1);
@@ -39,6 +54,8 @@ test("PostgreSQL adapter persists lookup, expiry, atomic consume and grant revoc
   } finally {
     await adapter.destroy(id);
     await related.destroy(`${id}-at`);
+    await related.destroy(`${id}-late-at`);
+    await related.destroy(`${id}-racing-at`);
     await disconnectPrisma();
   }
 });

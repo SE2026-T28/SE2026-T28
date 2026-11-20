@@ -58,6 +58,9 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   }
   const adapterKey = env.OIDC_ADAPTER_KEY?.trim();
   if (adapterKey && !/^[a-f0-9]{64}$/i.test(adapterKey)) throw new Error("OIDC_ADAPTER_KEY must be a 32-byte hex key");
+  if (adapterKey && cookieKeys?.some(key => key.toLowerCase() === adapterKey.toLowerCase())) {
+    throw new Error("OIDC_ADAPTER_KEY must differ from every OIDC_COOKIE_KEYS value");
+  }
 
   return {
     port,

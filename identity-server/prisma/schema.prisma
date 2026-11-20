@@ -36,3 +36,12 @@ model OidcArtifact {
   @@index([expiresAt])
   @@map("oidc_artifacts")
 }
+
+// A revocation fence survives deletion of the grant's current artifacts.
+// Concurrent refresh upserts consult it under the same transaction lock.
+model OidcRevokedGrant {
+  id        String   @id @db.VarChar(64)
+  revokedAt DateTime @default(now()) @map("revoked_at") @db.Timestamptz(6)
+
+  @@map("oidc_revoked_grants")
+}

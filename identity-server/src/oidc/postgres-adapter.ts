@@ -16,6 +16,13 @@ function storageId(id: string): string {
   return createHash("sha256").update(id).digest("hex");
 }
 
+async function lockGrant(tx: Prisma.TransactionClient, grantId: string): Promise<void> {
+  // A transaction-scoped lock serializes refresh writes with grant revocation
+  // across Provider processes, including when no artifact row exists yet.
+  const lockId = createHash("sha256").update(grantId).digest().readBigInt64BE();
+  await tx.$queryRaw`SELECT 1 AS acquired FROM (SELECT pg_advisory_xact_lock(${lockId})) AS grant_lock`;
+}
+
 const developmentKey = randomBytes(32);
 
 type EncryptedPayload = { v: 1; iv: string; tag: string; data: string };
@@ -59,10 +66,19 @@ export class PostgresOidcAdapter implements Adapter {
       expiresAt: expiry === undefined ? null : new Date(expiry),
       consumedAt: typeof payload.consumed === "number" ? new Date(payload.consumed * 1000) : null,
     };
-    await getPrisma().oidcArtifact.upsert({
-      where: { model_id: { model: this.model, id: key } },
-      create: { model: this.model, id: key, ...data },
-      update: data,
+    const grantId = value(payload, "grantId") ?? (this.model === "Grant" ? id : null);
+    await getPrisma().$transaction(async tx => {
+      if (grantId) {
+        await lockGrant(tx, grantId);
+        if (await tx.oidcRevokedGrant.findUnique({ where: { id: storageId(grantId) } })) {
+          throw new errors.InvalidGrant("grant has been revoked");
+        }
+      }
+      await tx.oidcArtifact.upsert({
+        where: { model_id: { model: this.model, id: key } },
+        create: { model: this.model, id: key, ...data },
+        update: data,
+      });
     });
   }
 
@@ -104,7 +120,14 @@ export class PostgresOidcAdapter implements Adapter {
   }
 
   async revokeByGrantId(grantId: string): Promise<void> {
-    await getPrisma().oidcArtifact.deleteMany({ where: { model: this.model, grantId: storageId(grantId) } });
+    await getPrisma().$transaction(async tx => {
+      await lockGrant(tx, grantId);
+      const id = storageId(grantId);
+      await tx.oidcRevokedGrant.upsert({ where: { id }, create: { id }, update: {} });
+      // Delete across models while holding the fence. Provider invokes this
+      // method on one adapter model, but the grant spans several token types.
+      await tx.oidcArtifact.deleteMany({ where: { grantId: id } });
+    });
   }
 }
 

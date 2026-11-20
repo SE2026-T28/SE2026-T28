@@ -41,9 +41,14 @@ test("M3: API resource, rotated refresh, revocation and RP logout", async () => 
       method: "POST", headers: { "content-type": "application/x-www-form-urlencoded", connection: "close" }, body: new URLSearchParams(fields),
     });
     type TokenSet = { access_token: string; refresh_token: string; id_token: string; expires_in: number };
-    const issueTokens = async (state: string): Promise<TokenSet> => {
+    const issueTokens = async (state: string, apiResource = true): Promise<TokenSet> => {
       const verifier = randomBytes(32).toString("base64url");
       const authorization = new URL(auth);
+      if (!apiResource) {
+        authorization.searchParams.set("scope", "openid email");
+        authorization.searchParams.delete("resource");
+        authorization.searchParams.delete("prompt");
+      }
       authorization.searchParams.set("state", state);
       authorization.searchParams.set("nonce", randomBytes(16).toString("base64url"));
       authorization.searchParams.set("code_challenge", createHash("sha256").update(verifier).digest("base64url"));
@@ -66,8 +71,9 @@ test("M3: API resource, rotated refresh, revocation and RP logout", async () => 
       assert.equal(callback.searchParams.get("state"), state);
       const code = callback.searchParams.get("code");
       assert.ok(code);
-      const issued = await token({ grant_type: "authorization_code", client_id: "app04-react-demo", code,
-        redirect_uri: "http://localhost:5173/callback", code_verifier: verifier, resource });
+      const fields = { grant_type: "authorization_code", client_id: "app04-react-demo", code,
+        redirect_uri: "http://localhost:5173/callback", code_verifier: verifier };
+      const issued = await token(apiResource ? { ...fields, resource } : fields);
       assert.equal(issued.status, 200);
       return await issued.json() as TokenSet;
     };
@@ -80,6 +86,25 @@ test("M3: API resource, rotated refresh, revocation and RP logout", async () => 
     assert.equal(apiToken.aud, resource);
     assert.ok(apiToken.scope?.split(" ").includes("api:read"));
     assert.equal(apiToken.clientId, "app04-react-demo");
+    const badAuthorization = new URL(auth);
+    badAuthorization.searchParams.set("resource", `${issuer}/other`);
+    badAuthorization.searchParams.set("state", "m3-invalid-target-state");
+    badAuthorization.searchParams.set("nonce", randomBytes(16).toString("base64url"));
+    badAuthorization.searchParams.set("code_challenge", createHash("sha256").update(randomBytes(32).toString("base64url")).digest("base64url"));
+    const rejectedAuthorization = await request(badAuthorization);
+    assert.equal(rejectedAuthorization.status, 303);
+    const rejectedTarget = new URL(rejectedAuthorization.headers.get("location")!, issuer);
+    assert.equal(rejectedTarget.searchParams.get("error"), "invalid_target");
+    const noResource = await issueTokens("m3-userinfo-state", false);
+    const userinfoToken = await context.getProvider().AccessToken.find(noResource.access_token);
+    assert.ok(userinfoToken);
+    assert.notEqual(userinfoToken.aud, resource, "M2 request without resource must not receive an API token");
+    assert.ok(!userinfoToken.scope?.split(" ").includes("api:read"));
+    const invalidResourceGrant = await issueTokens("m3-invalid-resource-state");
+    const invalidResource = await token({ grant_type: "refresh_token", client_id: "app04-react-demo",
+      refresh_token: invalidResourceGrant.refresh_token, resource: `${issuer}/other` });
+    assert.equal(invalidResource.status, 400);
+    assert.equal((await invalidResource.json() as { error: string }).error, "invalid_target");
     await context.restart(); // new Provider instance, same PostgreSQL and cookie key
     const sessionAuth = new URL(auth);
     sessionAuth.searchParams.set("scope", "openid email");
@@ -104,6 +129,11 @@ test("M3: API resource, rotated refresh, revocation and RP logout", async () => 
     const secondTokens = await second.json() as { refresh_token: string; access_token: string; id_token?: string };
     assert.ok(secondTokens.refresh_token && secondTokens.access_token && secondTokens.id_token);
     assert.notEqual(secondTokens.refresh_token, firstTokens.refresh_token);
+    const scopeGrant = await issueTokens("m3-scope-state");
+    const expandedScope = await token({ grant_type: "refresh_token", client_id: "app04-react-demo",
+      refresh_token: scopeGrant.refresh_token, resource, scope: "openid email api:read admin" });
+    assert.equal(expandedScope.status, 400);
+    assert.equal((await expandedScope.json() as { error: string }).error, "invalid_scope");
     // Revoke a live grant; RFC 7009 returns 200 even for an already dead token.
     const revoke = await fetch(`${issuer}/token/revocation`, { method: "POST",
       headers: { "content-type": "application/x-www-form-urlencoded" },

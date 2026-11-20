@@ -52,7 +52,8 @@ export const AnyNull = runtime.AnyNull
 
 export const ModelName = {
   User: 'User',
-  OidcArtifact: 'OidcArtifact'
+  OidcArtifact: 'OidcArtifact',
+  OidcRevokedGrant: 'OidcRevokedGrant'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -94,6 +95,14 @@ export const OidcArtifactScalarFieldEnum = {
 } as const
 
 export type OidcArtifactScalarFieldEnum = (typeof OidcArtifactScalarFieldEnum)[keyof typeof OidcArtifactScalarFieldEnum]
+
+
+export const OidcRevokedGrantScalarFieldEnum = {
+  id: 'id',
+  revokedAt: 'revokedAt'
+} as const
+
+export type OidcRevokedGrantScalarFieldEnum = (typeof OidcRevokedGrantScalarFieldEnum)[keyof typeof OidcRevokedGrantScalarFieldEnum]
 
 
 export const SortOrder = {
