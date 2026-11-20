@@ -75,7 +75,7 @@ function Dashboard({
       </dl>
       <section aria-label="Protected API profile">
         <h2>Protected API</h2>
-        {profile.status === "loading" && <p>Loading profile…</p>}
+        {profile.status === "loading" && <p>Loading profileâ€¦</p>}
         {profile.status === "ok" && (
           <dl>
             <dt>API sub</dt>
@@ -203,7 +203,7 @@ function Home({ initialSession }: { initialSession?: Session }) {
     return (
       <main>
         <h1>APP-04 Demo Client</h1>
-        <p>Loading…</p>
+        <p>Loadingâ€¦</p>
       </main>
     );
   }
