@@ -43,7 +43,7 @@ Chỉ chứa URL/định danh public, không secret. Thiếu biến, scope khôn
 | `VITE_OIDC_REDIRECT_URI` | `http://localhost:5173/callback` |
 | `VITE_OIDC_POST_LOGOUT_REDIRECT_URI` | `http://localhost:5173/` |
 | `VITE_OIDC_SCOPE` | `openid profile email api:read offline_access` |
-| `VITE_API_RESOURCE` (tùy chọn) | mặc định `<authority>/api`; nếu đặt phải là URL http(s) cùng origin với authority, không query/fragment/credentials |
+| `VITE_API_RESOURCE` (tùy chọn) | mặc định `<authority>/api`; nếu đặt phải là URL http(s) cùng origin với authority, không query/fragment/credentials; giá trị được chuẩn hóa (host viết thường, bỏ `/` cuối) |
 
 Giá trị khớp `identity-server/.env.example` (nhánh `feat/oidc-provider-discovery`); IdP cho phép CORS origin `http://localhost:5173`.
 
@@ -69,28 +69,31 @@ Hợp đồng gốc: `docs/m3-token-logout-contract.md` (nhánh `feat/m3-oidc-pe
 - Login gửi `scope=openid profile email api:read offline_access`, `prompt=consent` (không có thì oidc-provider bỏ `offline_access`), `resource=<issuer>/api` ở authorization request **và** `extraTokenParams: { resource }` ở bước đổi code (thư viện lưu vào state và gửi ở token request).
 - `src/profile.ts`: `GET <resource>/protected/profile` với header `Authorization: Bearer <access_token>` (không bao giờ ở query string; `credentials: omit`, `cache: no-store`). Body 200 phải đúng dạng `{"sub": "<string>"}` (đúng một khóa) và `sub` phải bằng `sub` của ID Token đã xác minh, sai -> coi là lỗi, không render.
 - Trạng thái UI (thông báo cố định, không bao giờ chứa token hay text của server): đang tải; dữ liệu; 403 `insufficient_scope` -> "không được cấp quyền", không có dữ liệu; 401 -> refresh (C4); hết phiên -> "Your session expired. Please log in again." + nút Login; lỗi mạng/500/body sai -> "Could not load the profile" + nút Retry.
-- Gọi API được single-flight (StrictMode chạy effect hai lần vẫn chỉ một request).
+- Gọi API được single-flight theo (resource, `sub`): StrictMode chạy effect hai lần vẫn chỉ một request, nhưng một lượt tải cho user khác không bao giờ dùng chung kết quả.
 
 ### C4 — refresh
 
 - Khi API trả 401 (hoặc Access Token đã hết hạn trước khi gọi) -> đúng một lần `signinSilent({ resource, extraTokenParams: { resource } })` (refresh_token grant; `automaticSilentRenew` vẫn `false`), rồi gọi lại API đúng một lần. 401 lần hai -> xóa phiên, "session expired".
 - Single-flight (`refreshSession` trong `src/session.ts`): các caller đồng thời dùng chung một promise; caller đến muộn mà Access Token trong store đã khác token vừa bị 401 thì dùng luôn token mới thay vì xoay refresh token lần nữa (refresh token rotate, request thứ hai sẽ `invalid_grant`).
 - Refresh token được xoay: thư viện thay bản lưu bằng token mới.
-- Nếu response refresh có `id_token` mới: xác minh lại đầy đủ (chữ ký, iss, aud, azp, exp/iat), **không** đòi `nonce` (OIDC Core 12.2 cho phép vắng), `sub` phải bằng `sub` phiên hiện tại; qua -> marker `app04.verified` cập nhật theo ID Token mới (reload vẫn khôi phục được), trượt -> xóa phiên. Không có `id_token` mới -> ID Token cũ và marker giữ nguyên.
+- Nếu response refresh có `id_token` mới: xác minh lại đầy đủ (chữ ký, iss, aud, azp, exp/iat), `nonce` không bắt buộc (OIDC Core 12.2 cho phép vắng) nhưng nếu có thì phải bằng `nonce` của ID Token gốc, `sub` phải bằng `sub` phiên hiện tại (kiểm tra riêng của client, độc lập với thư viện); qua -> marker `app04.verified` cập nhật theo ID Token mới (reload vẫn khôi phục được), trượt -> xóa phiên. Không có `id_token` mới -> ID Token cũ và marker giữ nguyên.
 - Refresh thất bại (invalid_grant, bị thu hồi, lỗi mạng, không có refresh token) -> `removeUser()` + xóa marker + dữ liệu bảo vệ trong bộ nhớ -> trạng thái "session expired". Chi tiết lỗi không hiện ra UI.
 - Hạn chế đã biết: reload khi ID Token đã hết hạn (`exp`) thì `restoreSession` (M2) vẫn từ chối và yêu cầu đăng nhập lại, kể cả khi refresh token còn sống.
 
 ### C5 — logout
 
 Thứ tự trong `logout()`:
+0. Chờ refresh đang chạy (nếu có) xong rồi mới đọc user, để thu hồi đúng refresh token vừa xoay; từ lúc này `refreshSession` từ chối khởi động và không refresh nào được ghi lại marker.
 1. Thu hồi refresh token ở revocation endpoint (`revokeTokens(["refresh_token"])`; hợp đồng: thu hồi RT thu hồi cả grant và Access Token liên quan; không có RT thì thu hồi access token).
 2. Lấy `id_token`, xóa marker + user trong `sessionStorage` + dữ liệu bảo vệ.
-3. `signoutRedirect({ id_token_hint, state })` tới `end_session_endpoint` (Discovery) với `post_logout_redirect_uri=http://localhost:5173/`.
+3. `signoutRedirect({ id_token_hint, state })` tới `end_session_endpoint` (Discovery) với `post_logout_redirect_uri=http://localhost:5173/`. Nếu bước này lỗi (logout cục bộ) thì xóa phiên thêm một lần nữa.
+
+Ở UI, nút Logout gỡ Dashboard (kèm dữ liệu API) khỏi DOM ngay (`flushSync`), trước khi thu hồi/chuyển hướng, và hiện màn cố định "Logging out…" không chứa dữ liệu bảo vệ; vì vậy ảnh chụp bfcache của trang không giữ dữ liệu.
 
 - Thu hồi thất bại -> vẫn logout; sau khi quay về hiện cảnh báo "access tokens already issued may stay valid for up to 300 seconds" (chỉ lưu cờ không nhạy cảm trong `sessionStorage`, đọc một lần rồi xóa). RP logout một mình không thu hồi token và UI không nói như vậy.
 - Quay về `/` sau logout: cờ `app04.logout.pending` (do ta đặt trước khi chuyển hướng) cho biết đây là lượt trả về của logout; nếu Provider trả `state` (oidc-provider 9.12.2 có echo `state` khi có `post_logout_redirect_uri`) thì `signoutCallback` xử lý và xóa state của thư viện, nếu không echo vẫn hoạt động nhờ cờ; query bị xóa khỏi thanh địa chỉ; hiện "You are logged out.".
 - Provider không có `end_session_endpoint` -> chỉ đăng xuất cục bộ và báo rõ như vậy.
-- Back/forward: khi trang được khôi phục từ bfcache (`pageshow` với `persisted`) ta chạy lại `restoreSession`; không còn phiên thì dashboard và dữ liệu API biến mất. Reload sau logout không còn user trong store nên không có dữ liệu.
+- Back/forward: khi trang được khôi phục từ bfcache (`pageshow` với `persisted`) ta ẩn ngay (đồng bộ) mọi dữ liệu phiên, bật lại nút Login, xử lý cờ logout còn sót (`app04.logout.pending` / `app04.logout.revoke_failed`: đọc một lần rồi xóa, hiện thông báo/cảnh báo tương ứng) rồi mới chạy lại `restoreSession` (bất đồng bộ). `login()` cũng xóa hai cờ này trước khi chuyển hướng nên reload sau này không thể đăng xuất nhầm phiên mới. Reload sau logout không còn user trong store nên không có dữ liệu.
 - Token chỉ nằm trong `sessionStorage` qua store của `oidc-client-ts`; `localStorage` luôn rỗng (có test).
 
 ### Chạy thử với Provider (PR #27) và API (PR #29)
