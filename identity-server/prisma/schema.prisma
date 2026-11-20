@@ -16,3 +16,20 @@ model User {
 
   @@map("users")
 }
+
+model AuditEvent {
+  id            String   @id @default(uuid()) @db.Uuid
+  eventType     String   @map("event_type") @db.VarChar(64)
+  outcome       String   @db.VarChar(7)
+  actorId       String?  @map("actor_id") @db.Uuid
+  clientId      String?  @map("client_id") @db.VarChar(64)
+  correlationId String?  @map("correlation_id") @db.VarChar(36)
+  reasonCode    String?  @map("reason_code") @db.VarChar(64)
+  occurredAt    DateTime @default(now()) @map("occurred_at") @db.Timestamptz(6)
+  metadata      Json     @default("{}") @db.JsonB
+
+  @@index([occurredAt])
+  @@index([actorId, occurredAt])
+  @@index([correlationId])
+  @@map("audit_events")
+}

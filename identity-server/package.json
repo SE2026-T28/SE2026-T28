@@ -35,6 +35,11 @@
     "oidc-provider": "9.12.2",
     "pg": "8.16.3"
   },
+  "overrides": {
+    "@prisma/config@7.10.1": {
+      "effect": "3.22.1"
+    }
+  },
   "devDependencies": {
     "@types/express": "5.0.6",
     "@types/node": "24.19.2",
