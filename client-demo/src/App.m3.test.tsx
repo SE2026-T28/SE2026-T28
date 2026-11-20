@@ -117,6 +117,7 @@ function spyNavigation() {
   const assign = vi.fn();
   vi.spyOn(window, "location", "get").mockReturnValue({
     ...window.location,
+    href: window.location.href, // prototype getters are not copied by the spread
     assign,
   } as unknown as Location);
   return assign;
@@ -335,6 +336,71 @@ describe("logout UI", () => {
     await screen.findByRole("button", { name: "Login" });
     expect(screen.queryByTestId("api-sub")).toBeNull();
     expect(screen.queryByText("Logged in")).toBeNull();
+  });
+
+  it("Logout removes protected data before navigation; Back (bfcache) restores a usable Login", async () => {
+    await seedVerifiedUser();
+    let releaseRevoke!: () => void;
+    const revokeGate = new Promise<void>((r) => (releaseRevoke = r));
+    stub(async (url) => {
+      if (url.endsWith("/token/revocation")) {
+        await revokeGate;
+        return new Response(null, { status: 200 });
+      }
+      return json({ sub: "user-1" });
+    });
+    renderStrict();
+    await screen.findByTestId("api-sub");
+    const assign = spyNavigation();
+    fireEvent.click(screen.getByRole("button", { name: "Logout" })); // the real button path
+    // revocation is still pending and nothing has navigated: protected data is already gone
+    expect(assign).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("api-sub")).toBeNull();
+    expect(screen.queryByText("Logged in")).toBeNull();
+    expect(screen.getByText("Logging out…")).toBeTruthy();
+    releaseRevoke();
+    await waitFor(() => expect(assign).toHaveBeenCalledTimes(1));
+    // the frozen page snapshot (what bfcache keeps) holds no protected data
+    expect(screen.queryByTestId("api-sub")).toBeNull();
+    expect(screen.queryByText("user-1")).toBeNull();
+    expect(document.body.textContent).not.toContain("user-1");
+    // Back: the frozen page is shown again
+    await act(async () => {
+      const ev = new Event("pageshow") as PageTransitionEvent;
+      Object.defineProperty(ev, "persisted", { value: true });
+      window.dispatchEvent(ev);
+      // synchronously after the event: still no protected data and no stale "Logging out…"
+      expect(screen.queryByTestId("api-sub")).toBeNull();
+    });
+    const login = await screen.findByRole("button", { name: "Login" });
+    expect((login as HTMLButtonElement).disabled).toBe(false);
+    expect(screen.queryByTestId("api-sub")).toBeNull();
+    expect(screen.queryByText("Logging out…")).toBeNull();
+    // the logout flags were consumed here, so a later reload cannot log a new session out
+    expect(window.sessionStorage.getItem(LOGOUT_PENDING_KEY)).toBeNull();
+    expect(window.sessionStorage.getItem(LOGOUT_WARNING_KEY)).toBeNull();
+    expect(screen.getByRole("status").textContent).toBe("You are logged out.");
+  });
+
+  it("a persisted pageshow after a failed-revocation logout shows the warning and consumes the flags", async () => {
+    await seedVerifiedUser();
+    stub((url) =>
+      url.endsWith("/token/revocation") ? new Response(null, { status: 500 }) : json({ sub: "user-1" }),
+    );
+    renderStrict();
+    await screen.findByTestId("api-sub");
+    const assign = spyNavigation();
+    fireEvent.click(screen.getByRole("button", { name: "Logout" }));
+    await waitFor(() => expect(assign).toHaveBeenCalledTimes(1));
+    expect(window.sessionStorage.getItem(LOGOUT_WARNING_KEY)).toBe("1");
+    await act(async () => {
+      const ev = new Event("pageshow") as PageTransitionEvent;
+      Object.defineProperty(ev, "persisted", { value: true });
+      window.dispatchEvent(ev);
+    });
+    expect((await screen.findByRole("alert")).textContent).toBe(LOGOUT_WARNING);
+    expect(window.sessionStorage.getItem(LOGOUT_PENDING_KEY)).toBeNull();
+    expect(window.sessionStorage.getItem(LOGOUT_WARNING_KEY)).toBeNull();
   });
 
   it("a non-persisted pageshow keeps a valid session", async () => {

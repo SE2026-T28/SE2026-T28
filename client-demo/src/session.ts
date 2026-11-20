@@ -67,6 +67,14 @@ function randomNonce(): string {
 // resource (RFC 8707) goes on the authorization request AND the code exchange; prompt=consent is
 // required or oidc-provider drops offline_access (no refresh token).
 export async function login(um: UserManager, apiResource: string): Promise<void> {
+  // flags left by an earlier logout (page restored from bfcache) must not survive into a new login:
+  // a later reload would otherwise treat it as a logout return and drop the valid session
+  try {
+    window.sessionStorage.removeItem(LOGOUT_PENDING_KEY);
+    window.sessionStorage.removeItem(LOGOUT_WARNING_KEY);
+  } catch {
+    // storage unavailable: nothing to clear
+  }
   await um.signinRedirect({
     nonce: randomNonce(),
     prompt: "consent",

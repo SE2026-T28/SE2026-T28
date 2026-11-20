@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import { ConfigError } from "./config";
 import { loadProfile, type ProfileResult } from "./profile";
 import { currentPath, getConfig, getUserManager, takeCallbackUrl, takeLogoutReturn } from "./runtime";
@@ -7,6 +8,7 @@ import {
   handleCallbackOnce,
   login,
   logout,
+  processLogoutReturn,
   restoreSession,
   type CallbackResult,
   type Session,
@@ -117,6 +119,7 @@ function Home({ initialSession }: { initialSession?: Session }) {
   const [session, setSession] = useState<Session | null>(initialSession ?? null);
   const [ready, setReady] = useState(initialSession !== undefined);
   const [pending, setPending] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
   const [notice, setNotice] = useState<Notice | null>(null);
 
   useEffect(() => {
@@ -148,23 +151,34 @@ function Home({ initialSession }: { initialSession?: Session }) {
     };
   }, [initialSession]);
 
-  // Back/forward cache restores the old DOM without running effects: re-check the session so a
-  // page frozen before logout (or expiry) never keeps showing protected data.
+  // Back/forward cache restores the old DOM without running effects. Hide everything at once
+  // (no protected data while the async re-check runs, and no stuck "pending" Login button), then
+  // consume logout flags left by a logout that navigated away and re-check the stored session.
   useEffect(() => {
     function onPageShow(e: PageTransitionEvent) {
       if (!e.persisted) return;
+      setSession(null);
+      setLoggingOut(false);
+      setPending(false);
+      setReady(false); // synchronous: shows "Loading…" until the check finishes
       let um;
       try {
         um = getUserManager();
       } catch {
-        setSession(null);
+        setReady(true);
         return;
       }
-      restoreSession(um)
+      processLogoutReturn(um, window.location.href)
+        .then((r) => {
+          if (r.returned) setNotice(r.revokeFailed ? "revoke_failed" : "logged_out");
+        })
+        .catch(() => {})
+        .then(() => restoreSession(um))
         .catch(() => null)
         .then((s) => {
           setSession(s);
           if (!s) setNotice((n) => n ?? "logged_out");
+          setReady(true);
         });
     }
     window.addEventListener("pageshow", onPageShow);
@@ -186,15 +200,23 @@ function Home({ initialSession }: { initialSession?: Session }) {
 
   async function doLogout() {
     if (pending) return;
-    setPending(true);
+    // Drop the Dashboard (and its protected data) from the DOM BEFORE anything async or any
+    // navigation: the page may be frozen in bfcache right after the redirect starts.
+    flushSync(() => {
+      setPending(true);
+      setSession(null);
+      setLoggingOut(true);
+    });
     let outcome: Awaited<ReturnType<typeof logout>> = "local_only";
     try {
       outcome = await logout(getUserManager());
     } catch {
       // logout() clears local state first; a throw before that only means we could not even start
     }
-    if (outcome === "redirected") return; // navigating to the Provider; keep everything hidden
-    setSession(null); // local_only: the redirect never started, so show the final state here
+    // "redirected": the browser is navigating to the Provider. The view stays the fixed
+    // "Logging out…" screen with no protected data; a bfcache restore resets it (onPageShow).
+    if (outcome === "redirected") return;
+    setLoggingOut(false); // local_only: the redirect never started, show the final state here
     setNotice("local_only");
     setPending(false);
   }
@@ -204,6 +226,14 @@ function Home({ initialSession }: { initialSession?: Session }) {
       <main>
         <h1>APP-04 Demo Client</h1>
         <p>Loading…</p>
+      </main>
+    );
+  }
+  if (loggingOut) {
+    return (
+      <main>
+        <h1>APP-04 Demo Client</h1>
+        <p role="status">Logging out…</p>
       </main>
     );
   }

@@ -191,6 +191,16 @@ describe("C3 login request", () => {
     expect(p.get("nonce")).toBeTruthy();
   });
 
+  it("clears stale logout flags before redirecting to the Provider", async () => {
+    window.sessionStorage.setItem(LOGOUT_PENDING_KEY, "1");
+    window.sessionStorage.setItem(LOGOUT_WARNING_KEY, "1");
+    const assign = captureNavigation();
+    void login(makeUm(), config.apiResource);
+    await vi.waitFor(() => expect(assign).toHaveBeenCalled());
+    expect(window.sessionStorage.getItem(LOGOUT_PENDING_KEY)).toBeNull();
+    expect(window.sessionStorage.getItem(LOGOUT_WARNING_KEY)).toBeNull();
+  });
+
   it("the code exchange body carries resource and the PKCE verifier", async () => {
     const um = makeUm();
     const assign = captureNavigation();
