@@ -397,7 +397,9 @@ type FieldRefInputType<Model, FieldType> = Model extends never ? never : FieldRe
 
 
 export const ModelName = {
-  User: 'User'
+  User: 'User',
+  OidcArtifact: 'OidcArtifact',
+  OidcRevokedGrant: 'OidcRevokedGrant'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -413,7 +415,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "user"
+    modelProps: "user" | "oidcArtifact" | "oidcRevokedGrant"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -491,6 +493,154 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         }
       }
     }
+    OidcArtifact: {
+      payload: Prisma.$OidcArtifactPayload<ExtArgs>
+      fields: Prisma.OidcArtifactFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.OidcArtifactFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OidcArtifactPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.OidcArtifactFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OidcArtifactPayload>
+        }
+        findFirst: {
+          args: Prisma.OidcArtifactFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OidcArtifactPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.OidcArtifactFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OidcArtifactPayload>
+        }
+        findMany: {
+          args: Prisma.OidcArtifactFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OidcArtifactPayload>[]
+        }
+        create: {
+          args: Prisma.OidcArtifactCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OidcArtifactPayload>
+        }
+        createMany: {
+          args: Prisma.OidcArtifactCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.OidcArtifactCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OidcArtifactPayload>[]
+        }
+        delete: {
+          args: Prisma.OidcArtifactDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OidcArtifactPayload>
+        }
+        update: {
+          args: Prisma.OidcArtifactUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OidcArtifactPayload>
+        }
+        deleteMany: {
+          args: Prisma.OidcArtifactDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.OidcArtifactUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.OidcArtifactUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OidcArtifactPayload>[]
+        }
+        upsert: {
+          args: Prisma.OidcArtifactUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OidcArtifactPayload>
+        }
+        aggregate: {
+          args: Prisma.OidcArtifactAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateOidcArtifact>
+        }
+        groupBy: {
+          args: Prisma.OidcArtifactGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.OidcArtifactGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.OidcArtifactCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.OidcArtifactCountAggregateOutputType> | number
+        }
+      }
+    }
+    OidcRevokedGrant: {
+      payload: Prisma.$OidcRevokedGrantPayload<ExtArgs>
+      fields: Prisma.OidcRevokedGrantFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.OidcRevokedGrantFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OidcRevokedGrantPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.OidcRevokedGrantFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OidcRevokedGrantPayload>
+        }
+        findFirst: {
+          args: Prisma.OidcRevokedGrantFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OidcRevokedGrantPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.OidcRevokedGrantFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OidcRevokedGrantPayload>
+        }
+        findMany: {
+          args: Prisma.OidcRevokedGrantFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OidcRevokedGrantPayload>[]
+        }
+        create: {
+          args: Prisma.OidcRevokedGrantCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OidcRevokedGrantPayload>
+        }
+        createMany: {
+          args: Prisma.OidcRevokedGrantCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.OidcRevokedGrantCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OidcRevokedGrantPayload>[]
+        }
+        delete: {
+          args: Prisma.OidcRevokedGrantDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OidcRevokedGrantPayload>
+        }
+        update: {
+          args: Prisma.OidcRevokedGrantUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OidcRevokedGrantPayload>
+        }
+        deleteMany: {
+          args: Prisma.OidcRevokedGrantDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.OidcRevokedGrantUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.OidcRevokedGrantUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OidcRevokedGrantPayload>[]
+        }
+        upsert: {
+          args: Prisma.OidcRevokedGrantUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OidcRevokedGrantPayload>
+        }
+        aggregate: {
+          args: Prisma.OidcRevokedGrantAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateOidcRevokedGrant>
+        }
+        groupBy: {
+          args: Prisma.OidcRevokedGrantGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.OidcRevokedGrantGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.OidcRevokedGrantCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.OidcRevokedGrantCountAggregateOutputType> | number
+        }
+      }
+    }
   }
 } & {
   other: {
@@ -541,6 +691,28 @@ export const UserScalarFieldEnum = {
 export type UserScalarFieldEnum = (typeof UserScalarFieldEnum)[keyof typeof UserScalarFieldEnum]
 
 
+export const OidcArtifactScalarFieldEnum = {
+  model: 'model',
+  id: 'id',
+  payload: 'payload',
+  grantId: 'grantId',
+  uid: 'uid',
+  userCode: 'userCode',
+  expiresAt: 'expiresAt',
+  consumedAt: 'consumedAt'
+} as const
+
+export type OidcArtifactScalarFieldEnum = (typeof OidcArtifactScalarFieldEnum)[keyof typeof OidcArtifactScalarFieldEnum]
+
+
+export const OidcRevokedGrantScalarFieldEnum = {
+  id: 'id',
+  revokedAt: 'revokedAt'
+} as const
+
+export type OidcRevokedGrantScalarFieldEnum = (typeof OidcRevokedGrantScalarFieldEnum)[keyof typeof OidcRevokedGrantScalarFieldEnum]
+
+
 export const SortOrder = {
   asc: 'asc',
   desc: 'desc'
@@ -549,12 +721,36 @@ export const SortOrder = {
 export type SortOrder = (typeof SortOrder)[keyof typeof SortOrder]
 
 
+export const JsonNullValueInput = {
+  JsonNull: JsonNull
+} as const
+
+export type JsonNullValueInput = (typeof JsonNullValueInput)[keyof typeof JsonNullValueInput]
+
+
 export const QueryMode = {
   default: 'default',
   insensitive: 'insensitive'
 } as const
 
 export type QueryMode = (typeof QueryMode)[keyof typeof QueryMode]
+
+
+export const JsonNullValueFilter = {
+  DbNull: DbNull,
+  JsonNull: JsonNull,
+  AnyNull: AnyNull
+} as const
+
+export type JsonNullValueFilter = (typeof JsonNullValueFilter)[keyof typeof JsonNullValueFilter]
+
+
+export const NullsOrder = {
+  first: 'first',
+  last: 'last'
+} as const
+
+export type NullsOrder = (typeof NullsOrder)[keyof typeof NullsOrder]
 
 
 
@@ -588,6 +784,20 @@ export type DateTimeFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel
  * Reference to a field of type 'DateTime[]'
  */
 export type ListDateTimeFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'DateTime[]'>
+    
+
+
+/**
+ * Reference to a field of type 'Json'
+ */
+export type JsonFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'Json'>
+    
+
+
+/**
+ * Reference to a field of type 'QueryMode'
+ */
+export type EnumQueryModeFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'QueryMode'>
     
 
 
@@ -756,6 +966,8 @@ export interface PrismaClientOptionsWithAdapter extends PrismaClientBaseOptions 
 export type PrismaClientOptions = PrismaClientOptionsWithAccelerateUrl | PrismaClientOptionsWithAdapter
 export type GlobalOmitConfig = {
   user?: Prisma.UserOmit
+  oidcArtifact?: Prisma.OidcArtifactOmit
+  oidcRevokedGrant?: Prisma.OidcRevokedGrantOmit
 }
 
 /* Types for Logging */

@@ -6,6 +6,8 @@ export interface AppConfig {
   postLogoutRedirectUri: string;
   scopes: string[];
   corsOrigin: string;
+  cookieKeys?: string[];
+  adapterKey?: string;
 }
 
 function required(env: NodeJS.ProcessEnv, name: string): string {
@@ -29,7 +31,7 @@ function localUrl(value: string, name: string): URL {
 
 export function readConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   if (env.NODE_ENV === "production") {
-    throw new Error("O1 uses in-memory OIDC storage and ephemeral keys; production is not supported yet");
+    throw new Error("OIDC production key management is not configured; production is not supported yet");
   }
 
   const port = Number(required(env, "PORT"));
@@ -50,6 +52,15 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
 
   const scopes = [...new Set(required(env, "OIDC_SCOPES").split(/\s+/))];
   if (!scopes.includes("openid")) throw new Error("OIDC_SCOPES must include openid");
+  const cookieKeys = env.OIDC_COOKIE_KEYS?.split(",").map(value => value.trim()).filter(Boolean);
+  if (cookieKeys?.length && cookieKeys.some(value => !/^[a-f0-9]{64}$/i.test(value))) {
+    throw new Error("OIDC_COOKIE_KEYS must contain comma-separated 32-byte hex keys");
+  }
+  const adapterKey = env.OIDC_ADAPTER_KEY?.trim();
+  if (adapterKey && !/^[a-f0-9]{64}$/i.test(adapterKey)) throw new Error("OIDC_ADAPTER_KEY must be a 32-byte hex key");
+  if (adapterKey && cookieKeys?.some(key => key.toLowerCase() === adapterKey.toLowerCase())) {
+    throw new Error("OIDC_ADAPTER_KEY must differ from every OIDC_COOKIE_KEYS value");
+  }
 
   return {
     port,
@@ -59,5 +70,7 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     postLogoutRedirectUri: postLogout.href,
     scopes,
     corsOrigin: cors.origin,
+    cookieKeys: cookieKeys?.length ? cookieKeys : undefined,
+    adapterKey: adapterKey || undefined,
   };
 }

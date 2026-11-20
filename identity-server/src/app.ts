@@ -1,11 +1,12 @@
 import { randomBytes } from "node:crypto";
 import express from "express";
-import { Provider } from "oidc-provider";
+import { Provider, errors } from "oidc-provider";
 import { securityHeaders } from "./security/headers.js";
 import type { AppConfig } from "./config.js";
 import { userRouter } from "./users/user.routes.js";
 import { interactionRouter, type AuthenticateUser } from "./interactions/routes.js";
 import { findUserById } from "./users/authentication.js";
+import { PostgresOidcAdapter } from "./oidc/postgres-adapter.js";
 
 /**
  * CORS riêng cho Registration API.
@@ -60,12 +61,17 @@ export function createApp(config: AppConfig, authenticateUser?: AuthenticateUser
         client_id: config.clientId,
         token_endpoint_auth_method: "none",
         response_types: ["code"],
-        grant_types: ["authorization_code"],
+        grant_types: ["authorization_code", "refresh_token"],
         redirect_uris: [config.redirectUri],
         post_logout_redirect_uris: [config.postLogoutRedirectUri],
       },
     ],
-    scopes: config.scopes,
+    // Refresh grant is only enabled by oidc-provider when offline_access is advertised.
+    // Preserve older deployments whose configured scopes predate M3.
+    scopes: [...new Set([...config.scopes.filter(scope => scope !== "api:read"), "offline_access"])],
+    adapter: name => new PostgresOidcAdapter(name, config.adapterKey),
+    ttl: { AccessToken: 300, RefreshToken: 3600 },
+    rotateRefreshToken: true,
     claims: { email: ["email"] },
     pkce: { required: () => true },
     interactions: { url: (_ctx, interaction) => `/interaction/${interaction.uid}` },
@@ -82,9 +88,23 @@ export function createApp(config: AppConfig, authenticateUser?: AuthenticateUser
     clientBasedCORS(_ctx, origin, client) {
       return origin === config.corsOrigin && client.clientId === config.clientId;
     },
-    cookies: { keys: [randomBytes(32).toString("hex")] },
-    features: { devInteractions: { enabled: false } },
+    cookies: { keys: config.cookieKeys ?? [randomBytes(32).toString("hex")] },
+    features: {
+      devInteractions: { enabled: false },
+      revocation: { enabled: true },
+      rpInitiatedLogout: { enabled: true },
+      resourceIndicators: {
+        enabled: true,
+        getResourceServerInfo(_ctx, resource, client) {
+          if (client.clientId !== config.clientId || resource !== `${config.issuer}/api`) {
+            throw new errors.InvalidTarget();
+          }
+          return { scope: "api:read", audience: `${config.issuer}/api`, accessTokenFormat: "opaque" };
+        },
+      },
+    },
   });
+  app.locals.oidcProvider = provider;
 
   app.use("/interaction", express.urlencoded({ extended: false, limit: "10kb" }), interactionRouter(provider, authenticateUser));
   app.use(provider.callback());
