@@ -288,6 +288,12 @@ let refreshInflight: Promise<RefreshResult> | null = null;
 // Set once logout() has taken over: no new refresh may start or write session state afterwards.
 let logoutActive = false;
 
+// A logout that navigated away can leave this page frozen in bfcache with the guard still set.
+// When such a page is restored the logout is over: the app calls this before re-checking the session.
+export function endLogoutGuard(): void {
+  logoutActive = false;
+}
+
 export function resetRefreshForTests(): void {
   refreshInflight = null;
   logoutActive = false;
@@ -346,6 +352,11 @@ async function doRefresh(
   } catch {
     return failed(); // invalid_grant, revoked, network: details are never surfaced
   }
+  if (logoutActive) {
+    // logout() stopped waiting for this refresh: the library may already have stored the new user
+    await um.removeUser().catch(() => {});
+    return { ok: false };
+  }
   if (!user?.access_token || !user.id_token) return failed();
   try {
     const marker = storage.getItem(VERIFIED_KEY);
@@ -403,6 +414,9 @@ export const LOGOUT_WARNING_KEY = "app04.logout.revoke_failed"; // non-sensitive
 
 export type LogoutOutcome = "redirected" | "local_only";
 
+// Upper bound for waiting on an in-flight refresh before logout proceeds anyway (hung token endpoint).
+export const LOGOUT_REFRESH_WAIT_MS = 5000;
+
 // Order matters: (1) revoke at the Provider, (2) capture id_token + wipe client state,
 // (3) end the Provider session. RP logout alone never revokes tokens.
 export async function logout(
@@ -411,41 +425,58 @@ export async function logout(
 ): Promise<LogoutOutcome> {
   // A refresh in flight rotates the refresh token and rewrites the stored user. Let it finish
   // (its result is irrelevant), so we revoke the CURRENT token and nothing is written after we clear.
-  while (refreshInflight) {
-    try {
-      await refreshInflight;
-    } catch {
-      // ignored
+  // The wait is bounded: a hung token endpoint must not leave the user stuck on "Logging out…".
+  // After the timeout logoutActive stops the late refresh from writing anything (see doRefresh).
+  let timedOut = false;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<void>((resolve) => {
+    timer = setTimeout(() => {
+      timedOut = true;
+      resolve();
+    }, LOGOUT_REFRESH_WAIT_MS);
+  });
+  try {
+    while (refreshInflight && !timedOut) {
+      await Promise.race([refreshInflight.then(noop, noop), timeout]);
     }
+  } finally {
+    clearTimeout(timer);
   }
   logoutActive = true; // from here on refreshSession() refuses to start
-  const user = await um.getUser().catch(() => null);
-  const idToken = user?.id_token;
-  let revoked = true;
   try {
-    // revoking the refresh token also revokes its grant and the Access Tokens issued from it
-    if (user?.refresh_token) await um.revokeTokens(["refresh_token"]);
-    else if (user?.access_token) await um.revokeTokens(["access_token"]);
-  } catch {
-    revoked = false; // still log out; warn after the redirect returns
-  }
-  storage.removeItem(VERIFIED_KEY);
-  await um.removeUser().catch(() => {});
-  storage.removeItem(LOGOUT_WARNING_KEY);
-  if (!revoked) storage.setItem(LOGOUT_WARNING_KEY, "1");
-  storage.setItem(LOGOUT_PENDING_KEY, "1");
-  try {
-    // state: {} makes the library send a state it can match on return; the flow also works
-    // when the Provider does not echo it.
-    await um.signoutRedirect({ ...(idToken ? { id_token_hint: idToken } : {}), state: {} });
-    return "redirected";
-  } catch {
-    storage.removeItem(LOGOUT_PENDING_KEY);
-    logoutActive = false; // we stay on this page: a new login/refresh is possible again
-    await clearSession(um, storage); // nothing may have been written back meanwhile
-    return "local_only"; // e.g. Discovery has no end_session_endpoint
+    const user = await um.getUser().catch(() => null);
+    const idToken = user?.id_token;
+    let revoked = true;
+    try {
+      // revoking the refresh token also revokes its grant and the Access Tokens issued from it
+      if (user?.refresh_token) await um.revokeTokens(["refresh_token"]);
+      else if (user?.access_token) await um.revokeTokens(["access_token"]);
+    } catch {
+      revoked = false; // still log out; warn after the redirect returns
+    }
+    storage.removeItem(VERIFIED_KEY);
+    await um.removeUser().catch(() => {});
+    storage.removeItem(LOGOUT_WARNING_KEY);
+    if (!revoked) storage.setItem(LOGOUT_WARNING_KEY, "1");
+    storage.setItem(LOGOUT_PENDING_KEY, "1");
+    try {
+      // state: {} makes the library send a state it can match on return; the flow also works
+      // when the Provider does not echo it.
+      await um.signoutRedirect({ ...(idToken ? { id_token_hint: idToken } : {}), state: {} });
+      return "redirected"; // the guard stays set until navigation (or endLogoutGuard on bfcache restore)
+    } catch {
+      storage.removeItem(LOGOUT_PENDING_KEY);
+      logoutActive = false; // we stay on this page: a new login/refresh is possible again
+      await clearSession(um, storage); // nothing may have been written back meanwhile
+      return "local_only"; // e.g. Discovery has no end_session_endpoint
+    }
+  } catch (e) {
+    logoutActive = false; // logout itself threw (e.g. storage unavailable): do not leave the guard stuck
+    throw e;
   }
 }
+
+function noop(): void {}
 
 export interface LogoutReturn {
   returned: boolean;

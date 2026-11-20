@@ -15,7 +15,9 @@ import { loadProfile, resetProfileForTests } from "./profile";
 import {
   LOGOUT_PENDING_KEY,
   LOGOUT_WARNING_KEY,
+  LOGOUT_REFRESH_WAIT_MS,
   VERIFIED_KEY,
+  endLogoutGuard,
   handleCallback,
   login,
   logout,
@@ -870,5 +872,77 @@ describe("storage", () => {
     expect(window.sessionStorage.length).toBeGreaterThan(0); // tokens live here
     await runLogout(um, captureNavigation());
     expect(window.localStorage.length).toBe(0);
+  });
+});
+
+describe("C5 logout hardening", () => {
+  it("endLogoutGuard: a page restored after a redirected logout can refresh again", async () => {
+    const um = makeUm();
+    await seed(um);
+    stubFetch(() => new Response(null, { status: 200 }));
+    await runLogout(um, captureNavigation()); // "redirected": the guard stays set
+    await seed(um); // the user logged in on another page meanwhile
+    expect(await refreshSession(um, config.apiResource, "user-1", deps)).toEqual({ ok: false });
+    endLogoutGuard(); // what the bfcache restore handler does
+    stubFetch(async () => refreshResponse({ id_token: await mint({ jti: "restored" }) }));
+    expect((await refreshSession(um, config.apiResource, "user-1", deps)).ok).toBe(true);
+    expect(await um.getUser()).not.toBeNull();
+  });
+
+  it("a hung refresh delays logout by at most the bounded wait; the late result writes nothing", async () => {
+    const um = makeUm();
+    await seed(um);
+    const idToken = await mint({ jti: "late" });
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    const order: string[] = [];
+    stubFetch(async (url) => {
+      if (url.endsWith("/token/revocation")) {
+        order.push("revoke");
+        return new Response(null, { status: 200 });
+      }
+      order.push("token");
+      await gate;
+      return refreshResponse({ id_token: idToken });
+    });
+    const assign = captureNavigation();
+    const refresh = refreshSession(um, config.apiResource, "user-1", deps);
+    await vi.waitFor(() => expect(order).toEqual(["token"]));
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      void logout(um);
+      await vi.advanceTimersByTimeAsync(LOGOUT_REFRESH_WAIT_MS - 1);
+      expect(order).toEqual(["token"]); // still waiting
+      await vi.advanceTimersByTimeAsync(1);
+    } finally {
+      vi.useRealTimers();
+    }
+    await vi.waitFor(() => expect(assign).toHaveBeenCalled());
+    expect(order).toEqual(["token", "revoke"]); // logout went on without the refresh
+    expect(await um.getUser()).toBeNull();
+    release(); // the token endpoint finally answers
+    expect(await refresh).toEqual({ ok: false });
+    expect(await um.getUser()).toBeNull(); // the library stored the new user; doRefresh removed it
+    expect(window.sessionStorage.getItem(VERIFIED_KEY)).toBeNull();
+  });
+
+  it("a logout that throws resets the guard so refresh works again", async () => {
+    const um = makeUm();
+    await seed(um);
+    stubFetch(() => new Response(null, { status: 200 }));
+    const broken = {
+      length: 0,
+      key: () => null,
+      clear: () => {},
+      getItem: () => null,
+      setItem: () => {},
+      removeItem: () => {
+        throw new Error("storage denied");
+      },
+    } as unknown as Storage;
+    await expect(logout(um, broken)).rejects.toThrow("storage denied");
+    await seed(um);
+    stubFetch(async () => refreshResponse({ id_token: await mint({ jti: "after-throw" }) }));
+    expect((await refreshSession(um, config.apiResource, "user-1", deps)).ok).toBe(true);
   });
 });

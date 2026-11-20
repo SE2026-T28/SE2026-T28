@@ -5,6 +5,7 @@ import { loadProfile, type ProfileResult } from "./profile";
 import { currentPath, getConfig, getUserManager, takeCallbackUrl, takeLogoutReturn } from "./runtime";
 import {
   ERROR_MESSAGES,
+  endLogoutGuard,
   handleCallbackOnce,
   login,
   logout,
@@ -161,6 +162,8 @@ function Home({ initialSession }: { initialSession?: Session }) {
       setLoggingOut(false);
       setPending(false);
       setReady(false); // synchronous: shows "Loading…" until the check finishes
+      setNotice(null); // a stale notice from before the freeze must not outlive this restore
+      endLogoutGuard(); // a "redirected" logout left the guard set; this page is usable again
       let um;
       try {
         um = getUserManager();

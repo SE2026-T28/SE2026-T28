@@ -416,3 +416,67 @@ describe("logout UI", () => {
     expect(screen.getByTestId("api-sub")).toBeTruthy();
   });
 });
+
+describe("bfcache restore after logout", () => {
+  async function pageshowPersisted() {
+    await act(async () => {
+      const ev = new Event("pageshow") as PageTransitionEvent;
+      Object.defineProperty(ev, "persisted", { value: true });
+      window.dispatchEvent(ev);
+    });
+  }
+
+  it("a restored page can refresh a session that was logged in elsewhere (guard reset)", async () => {
+    await seedVerifiedUser();
+    let armed = false; // after the logout the profile API answers 401 once to force a refresh
+    stub(async (url) => {
+      if (url.endsWith("/token/revocation")) return new Response(null, { status: 200 });
+      if (url.endsWith("/token")) {
+        return json({
+          access_token: "NEW-AT",
+          refresh_token: "NEW-RT",
+          id_token: await mint(),
+          token_type: "Bearer",
+          expires_in: 300,
+          scope: config.scope,
+        });
+      }
+      if (armed) {
+        armed = false;
+        return json({ sub: "user-1" }, 401);
+      }
+      return json({ sub: "user-1" });
+    });
+    renderStrict();
+    await screen.findByTestId("api-sub");
+    const assign = spyNavigation();
+    fireEvent.click(screen.getByRole("button", { name: "Logout" }));
+    await waitFor(() => expect(assign).toHaveBeenCalledTimes(1)); // "redirected": guard stays set
+    await seedVerifiedUser(); // the user logged in on another page (login() clears the logout flags)
+    window.sessionStorage.removeItem(LOGOUT_PENDING_KEY);
+    window.sessionStorage.removeItem(LOGOUT_WARNING_KEY);
+    armed = true;
+    await pageshowPersisted();
+    expect((await screen.findByTestId("api-sub")).textContent).toBe("user-1");
+    expect(screen.queryByText(PROFILE_MESSAGES.expired)).toBeNull();
+  });
+
+  it("a persisted pageshow clears the previous notice", async () => {
+    await seedVerifiedUser();
+    stub((url) =>
+      url.endsWith("/token/revocation") ? json({ error: "server_error" }, 500) : json({ sub: "user-1" }),
+    );
+    renderStrict();
+    await screen.findByTestId("api-sub");
+    spyNavigation();
+    fireEvent.click(screen.getByRole("button", { name: "Logout" }));
+    await waitFor(() => expect(window.sessionStorage.getItem(LOGOUT_PENDING_KEY)).toBe("1"));
+    await pageshowPersisted(); // consumes the flags: shows the revocation warning
+    expect((await screen.findByRole("alert")).textContent).toBe(LOGOUT_WARNING);
+    // second restore, no logout flags this time: the old warning must not stay
+    await pageshowPersisted();
+    await waitFor(() => expect(screen.getByRole("status").textContent).toBe("You are logged out."));
+    expect(screen.queryByText(LOGOUT_WARNING)).toBeNull();
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+});
