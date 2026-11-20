@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { once } from "node:events";
 import { randomUUID } from "node:crypto";
+import { request as httpRequest } from "node:http";
 import { test } from "node:test";
 import express from "express";
 import { Provider } from "oidc-provider";
@@ -63,6 +64,32 @@ test("S1 opaque Provider models enforce token, Grant, account and redaction", as
     const request = (raw?: string, extra: Record<string, string> = {}) => fetch(url, {
       headers: { ...(raw ? { authorization: `Bearer ${raw}` } : {}), ...extra },
     });
+    const policyRequest = async (target: URL, headers?: Record<string, string>) => {
+      try {
+        return await fetch(target, { headers, redirect: "manual", signal: AbortSignal.timeout(10000) });
+      } catch {
+        // Fetch errors must not expose the URL carrying the test credential.
+        throw new Error("S3 credential-policy transport failed");
+      }
+    };
+    const assertQueryTokenRejected = async (target: string) => {
+      const headerResponse = await policyRequest(new URL(target), { authorization: `Bearer ${valid.raw}` });
+      assert.equal(headerResponse.status, 200, "Expected the valid header credential to work");
+      await headerResponse.arrayBuffer();
+      const query = new URL(target);
+      query.searchParams.set("access_token", valid.raw);
+      const queryResponse = await policyRequest(query);
+      const text = await queryResponse.text();
+      assert.ok(!text.includes(valid.raw), "Query credential reflected in response");
+      assert.equal(queryResponse.status, 401, "Expected query-only credential rejection");
+      assert.ok(!queryResponse.headers.has("location"), "Query credential response must not redirect");
+      let body: unknown;
+      try { body = JSON.parse(text); }
+      catch { throw new Error("Expected fixed query-credential JSON error"); }
+      assert.ok(body && typeof body === "object", "Expected query-credential error object");
+      const fields = body as Record<string, unknown>;
+      assert.ok(fields.error === "invalid_token" && Object.keys(fields).length === 1, "Expected fixed query-credential error");
+    };
     const expectStatus = async (raw: string | undefined, status: number) => {
       const response = await request(raw);
       assert.equal(response.status, status, "S1 response status");
@@ -75,6 +102,38 @@ test("S1 opaque Provider models enforce token, Grant, account and redaction", as
       if (raw) assert.ok(!body.includes(raw), "response omits raw bearer");
     };
     await t.test("valid opaque token returns only account UUID", () => expectStatus(valid.raw, 200));
+    await t.test("S3-35 lowercase Bearer scheme accepts a valid token", async () => {
+      const response = await request(undefined, { authorization: `bearer ${valid.raw}` });
+      assert.equal(response.status, 200);
+      const body = await response.json() as Record<string, unknown>;
+      assert.ok(body.sub === user.id && Object.keys(body).length === 1, "Expected the minimal profile");
+    });
+    await t.test("S3-34 duplicate Authorization headers reject valid credentials", async () => {
+      await expectStatus(valid.raw, 200);
+      const response = await new Promise<{ status: number | undefined; body: string }>((resolve, reject) => {
+        const outgoing = httpRequest(url, {
+          headers: ["Host", new URL(url).host, "Connection", "close",
+            "Authorization", `Bearer ${valid.raw}`, "Authorization", `Bearer ${valid.raw}`],
+          timeout: 10000,
+        }, incoming => {
+          let body = "";
+          incoming.setEncoding("utf8");
+          incoming.on("data", chunk => { body += chunk; });
+          incoming.on("end", () => resolve({ status: incoming.statusCode, body }));
+        });
+        outgoing.on("error", reject);
+        outgoing.on("timeout", () => outgoing.destroy(new Error("S3 duplicate-header request timed out")));
+        outgoing.end();
+      });
+      assert.equal(response.status, 401);
+      let body: unknown;
+      try { body = JSON.parse(response.body); }
+      catch { throw new Error("Expected fixed API JSON error"); }
+      assert.ok(body && typeof body === "object", "Expected API error object");
+      const fields = body as Record<string, unknown>;
+      assert.ok(fields.error === "invalid_token" && Object.keys(fields).length === 1, "Expected fixed API error");
+      assert.ok(!response.body.includes(valid.raw), "Response leaked a token");
+    });
     await t.test("missing token", () => expectStatus(undefined, 401));
     await t.test("unknown token", () => expectStatus("unknown-s1-fixture", 401));
     await t.test("valid signed ID Token rejected as bearer", async () => {
@@ -88,7 +147,34 @@ test("S1 opaque Provider models enforce token, Grant, account and redaction", as
       assert.equal((await request(undefined, { authorization: `Basic ${valid.raw}` })).status, 401);
     });
     await t.test("query token never authenticates", async () => {
-      assert.equal((await fetch(`${url}?access_token=fixture`)).status, 401);
+      await assertQueryTokenRejected(url);
+      t.diagnostic("S3-13 GREEN: headerStatus=200 queryStatus=401 tokenReflected=false");
+    });
+    await t.test("S3-13 verifier detects a test-only query-acceptance regression", async () => {
+      const unsafeApp = express();
+      // Controlled mutation of credential transport in this test server only.
+      // The same Provider models, live Grant/account and real router still validate the token.
+      unsafeApp.use((req, _res, next) => {
+        const raw = req.query.access_token;
+        if (typeof raw === "string" && !req.get("Authorization")) {
+          req.headers.authorization = `Bearer ${raw}`;
+          req.rawHeaders.push("Authorization", `Bearer ${raw}`);
+        }
+        next();
+      });
+      unsafeApp.use("/api/protected", protectedProfileRouter(provider, "http://localhost:5173"));
+      const unsafeServer = unsafeApp.listen(0, "127.0.0.1");
+      try {
+        await once(unsafeServer, "listening");
+        const address = unsafeServer.address();
+        assert.ok(address && typeof address !== "string");
+        const unsafeUrl = `http://127.0.0.1:${address.port}/api/protected/profile`;
+        await assert.rejects(() => assertQueryTokenRejected(unsafeUrl), (error: unknown) =>
+          error instanceof assert.AssertionError && error.expected === 401 && error.actual === 200);
+        t.diagnostic("S3-13 controlled RED: headerStatus=200 queryStatus=200 expected=401 regressionDetected=true");
+      } finally {
+        await new Promise<void>((resolve, reject) => unsafeServer.close(error => error ? reject(error) : resolve()));
+      }
     });
     for (const [name, overrides, status] of [
       ["expired token", { exp: Math.floor(Date.now() / 1000) - 120 }, 401],
