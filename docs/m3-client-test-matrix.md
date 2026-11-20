@@ -11,13 +11,13 @@ Phạm vi: `client-demo/` trên nhánh `feat/m3-client-c3-c5`. Hợp đồng g�
 
 | Mục | Giá trị |
 | --- | --- |
-| Commit được kiểm thử | `b4851a2` (mã nguồn và test; commit docs sau đó không đổi mã) |
+| Commit được kiểm thử | `77d2dd9` (mã nguồn và test; commit docs sau đó không đổi mã) |
 | Lệnh | `cd client-demo && npm test && npm run typecheck && npm run build && npm audit --audit-level=high` |
 | Node | v24.22.1 (Windows 11); nhóm chốt 24.22.0 |
 | vitest / happy-dom | 5.0.4 / 21.0.4 |
-| `npm test` | 6 file, **160 test PASS**, 0 fail |
+| `npm test` | 6 file, **165 test PASS**, 0 fail |
 | `npm run typecheck` | PASS (không lỗi) |
-| `npm run build` | PASS (69 module, `dist/assets/index-*.js` 321.00 kB, gzip 96.38 kB) |
+| `npm run build` | PASS (69 module, `dist/assets/index-*.js` 321.26 kB, gzip 96.47 kB) |
 | `npm audit --audit-level=high` | PASS (`found 0 vulnerabilities`) |
 
 ## Ma trận
@@ -39,7 +39,7 @@ Phạm vi: `client-demo/` trên nhánh `feat/m3-client-c3-c5`. Hợp đồng g�
 | C4-02 | 401 -> refresh `invalid_grant` -> phiên bị xóa (user + marker), "session expired" | `m3.test.ts > … 401 -> refresh invalid_grant …`; `App.m3.test.tsx > … 401 + refresh failure …` | PASS |
 | C4-03 | 401 lần hai sau refresh -> xóa phiên, đúng một refresh | `m3.test.ts > … 401 again after the refresh …` | PASS |
 | C4-04 | Access Token đã hết hạn -> refresh trước khi gọi API | `m3.test.ts > … an already expired Access Token is refreshed …` | PASS |
-| C4-05 | Refresh trả ID Token mới: xác minh lại (không nonce), cập nhật marker, reload khôi phục được | `m3.test.ts > C4 refreshSession > re-verifies the new ID Token …` | PASS |
+| C4-05 | Refresh trả ID Token mới: xác minh lại (nonce không bắt buộc; nếu có phải bằng nonce gốc, xem C4-10), cập nhật marker, reload khôi phục được | `m3.test.ts > C4 refreshSession > re-verifies the new ID Token …` | PASS |
 | C4-06 | Refresh không có `id_token` mới: marker nhất quán, reload khôi phục được | `m3.test.ts > … a response without id_token keeps the verified marker consistent` | PASS |
 | C4-07 | ID Token refresh sai chữ ký / aud / iss / hết hạn / khác `sub` -> xóa phiên | `m3.test.ts > … rejects a refreshed ID Token (*)` (5 test) | PASS |
 | C4-10 | ID Token refresh có `nonce`: phải bằng `nonce` của ID Token gốc (sai/gốc không có -> xóa phiên); kiểm `sub`/`nonce` của client chạy trực tiếp qua `verifyRefreshedIdToken` (không phụ thuộc kiểm tra của thư viện) | `m3.test.ts > C4 refreshSession > … a refreshed ID Token with a nonce that differs …`, `… repeating the original nonce is accepted`, `verifyRefreshedIdToken (our own checks, library bypassed) > *` (5 test) | PASS |
@@ -55,6 +55,10 @@ Phạm vi: `client-demo/` trên nhánh `feat/m3-client-c3-c5`. Hợp đồng g�
 | C5-08 | `logout()` chờ refresh đang chạy rồi thu hồi refresh token đã xoay; refresh yêu cầu sau khi logout bắt đầu bị từ chối và không ghi gì; nhánh `local_only` xóa phiên lại sau khi `signoutRedirect` lỗi và cho phép refresh trở lại | `m3.test.ts > C5 logout > waits for an in-flight refresh …`, `… a refresh requested after logout started is refused …`, `… local_only: clears again …` | PASS |
 | C5-09 | Bấm Logout: Dashboard/`api-sub` biến khỏi DOM ngay (trước khi điều hướng, khi thu hồi còn chờ), màn "Logging out…"; Back (bfcache): không dữ liệu bảo vệ, Login bật, "You are logged out." | `App.m3.test.tsx > logout UI > Logout removes protected data before navigation; Back (bfcache) restores a usable Login` | PASS |
 | C5-10 | Cờ `app04.logout.pending`/`revoke_failed`: `login()` xóa trước khi chuyển hướng; `pageshow persisted` đọc-một-lần và hiện cảnh báo 300 s | `m3.test.ts > C3 login request > clears stale logout flags …`; `App.m3.test.tsx > … a persisted pageshow after a failed-revocation logout …` | PASS |
+| C5-11 | Sau logout `redirected` (trang đóng băng trong bfcache), đăng nhập ở trang khác rồi Back: `pageshow persisted` gọi `endLogoutGuard()` nên refresh chạy lại được (không bị báo hết phiên) | `m3.test.ts > C5 logout hardening > endLogoutGuard: …`; `App.m3.test.tsx > bfcache restore after logout > a restored page can refresh …` | PASS |
+| C5-12 | `logout()` chỉ chờ refresh treo tối đa 5 s (fake timers: 4999 ms chưa thu hồi, 5000 ms thì thu hồi); refresh đến muộn trả `ok:false` và xóa user/marker, không ghi lại | `m3.test.ts > C5 logout hardening > a hung refresh delays logout by at most the bounded wait; …` | PASS |
+| C5-13 | `logout()` ném lỗi (storage lỗi) thì cờ chặn refresh được đặt lại, refresh hoạt động lại | `m3.test.ts > C5 logout hardening > a logout that throws resets the guard …` | PASS |
+| C5-14 | `pageshow persisted` xóa thông báo cũ (cảnh báo thu hồi lỗi không còn sau lần khôi phục thứ hai) | `App.m3.test.tsx > bfcache restore after logout > a persisted pageshow clears the previous notice` | PASS |
 | ST-01 | `localStorage` rỗng suốt login, refresh, gọi API, logout (token chỉ ở `sessionStorage`) | `m3.test.ts > storage > localStorage stays empty …` | PASS |
 | M2-REG | Toàn bộ test M2 còn lại (callback, nonce, verify, restore, config) | `session.test.ts`, `App.test.tsx`, `auth.test.ts`, `config.test.ts` (phần M2) | PASS |
 

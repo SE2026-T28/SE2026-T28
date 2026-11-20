@@ -83,7 +83,7 @@ Hợp đồng gốc: `docs/m3-token-logout-contract.md` (nhánh `feat/m3-oidc-pe
 ### C5 — logout
 
 Thứ tự trong `logout()`:
-0. Chờ refresh đang chạy (nếu có) xong rồi mới đọc user, để thu hồi đúng refresh token vừa xoay; từ lúc này `refreshSession` từ chối khởi động và không refresh nào được ghi lại marker.
+0. Chờ refresh đang chạy (nếu có) xong rồi mới đọc user, để thu hồi đúng refresh token vừa xoay; chờ tối đa 5 s (`LOGOUT_REFRESH_WAIT_MS`), quá hạn (token endpoint treo) thì logout vẫn tiếp tục. Từ lúc này `refreshSession` từ chối khởi động; refresh đến muộn không ghi lại marker và xóa user mà thư viện vừa lưu. Nếu `logout()` ném lỗi (ví dụ storage lỗi) thì cờ chặn được đặt lại; nhánh `redirected` giữ cờ đến khi điều hướng.
 1. Thu hồi refresh token ở revocation endpoint (`revokeTokens(["refresh_token"])`; hợp đồng: thu hồi RT thu hồi cả grant và Access Token liên quan; không có RT thì thu hồi access token).
 2. Lấy `id_token`, xóa marker + user trong `sessionStorage` + dữ liệu bảo vệ.
 3. `signoutRedirect({ id_token_hint, state })` tới `end_session_endpoint` (Discovery) với `post_logout_redirect_uri=http://localhost:5173/`. Nếu bước này lỗi (logout cục bộ) thì xóa phiên thêm một lần nữa.
@@ -93,7 +93,7 @@ Thứ tự trong `logout()`:
 - Thu hồi thất bại -> vẫn logout; sau khi quay về hiện cảnh báo "access tokens already issued may stay valid for up to 300 seconds" (chỉ lưu cờ không nhạy cảm trong `sessionStorage`, đọc một lần rồi xóa). RP logout một mình không thu hồi token và UI không nói như vậy.
 - Quay về `/` sau logout: cờ `app04.logout.pending` (do ta đặt trước khi chuyển hướng) cho biết đây là lượt trả về của logout; nếu Provider trả `state` (oidc-provider 9.12.2 có echo `state` khi có `post_logout_redirect_uri`) thì `signoutCallback` xử lý và xóa state của thư viện, nếu không echo vẫn hoạt động nhờ cờ; query bị xóa khỏi thanh địa chỉ; hiện "You are logged out.".
 - Provider không có `end_session_endpoint` -> chỉ đăng xuất cục bộ và báo rõ như vậy.
-- Back/forward: khi trang được khôi phục từ bfcache (`pageshow` với `persisted`) ta ẩn ngay (đồng bộ) mọi dữ liệu phiên, bật lại nút Login, xử lý cờ logout còn sót (`app04.logout.pending` / `app04.logout.revoke_failed`: đọc một lần rồi xóa, hiện thông báo/cảnh báo tương ứng) rồi mới chạy lại `restoreSession` (bất đồng bộ). `login()` cũng xóa hai cờ này trước khi chuyển hướng nên reload sau này không thể đăng xuất nhầm phiên mới. Reload sau logout không còn user trong store nên không có dữ liệu.
+- Back/forward: khi trang được khôi phục từ bfcache (`pageshow` với `persisted`) ta ẩn ngay (đồng bộ) mọi dữ liệu phiên, xóa thông báo cũ, bật lại nút Login, đặt lại cờ chặn refresh của logout (`endLogoutGuard()`), xử lý cờ logout còn sót (`app04.logout.pending` / `app04.logout.revoke_failed`: đọc một lần rồi xóa, hiện thông báo/cảnh báo tương ứng) rồi mới chạy lại `restoreSession` (bất đồng bộ). `login()` cũng xóa hai cờ này trước khi chuyển hướng nên reload sau này không thể đăng xuất nhầm phiên mới. Reload sau logout không còn user trong store nên không có dữ liệu.
 - Token chỉ nằm trong `sessionStorage` qua store của `oidc-client-ts`; `localStorage` luôn rỗng (có test).
 
 ### Chạy thử với Provider (PR #27) và API (PR #29)
