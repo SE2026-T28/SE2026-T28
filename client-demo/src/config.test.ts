@@ -38,4 +38,28 @@ describe("readConfig", () => {
       readConfig({ ...valid, VITE_OIDC_SCOPE: "profile email" }),
     ).toThrow(/openid/);
   });
+
+  describe("apiResource", () => {
+    it("derives <authority>/api and trims trailing slashes", () => {
+      expect(readConfig({ ...valid, VITE_OIDC_AUTHORITY: "http://localhost:3000/" }).apiResource).toBe(
+        "http://localhost:3000/api",
+      );
+    });
+
+    it("accepts a same-origin override", () => {
+      const env = { ...valid, VITE_API_RESOURCE: "http://localhost:3000/v2/api/" };
+      expect(readConfig(env).apiResource).toBe("http://localhost:3000/v2/api");
+    });
+
+    it.each([
+      ["not a URL", "api"],
+      ["non-http scheme", "ftp://localhost:3000/api"],
+      ["other origin (token would leave the Provider)", "http://evil.example/api"],
+      ["query", "http://localhost:3000/api?x=1"],
+      ["fragment", "http://localhost:3000/api#x"],
+      ["credentials", "http://user:pw@localhost:3000/api"],
+    ])("rejects %s", (_name, value) => {
+      expect(() => readConfig({ ...valid, VITE_API_RESOURCE: value })).toThrow(/VITE_API_RESOURCE/);
+    });
+  });
 });
