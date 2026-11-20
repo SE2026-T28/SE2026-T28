@@ -17,6 +17,7 @@ describe("readConfig", () => {
       redirectUri: "http://localhost:5173/callback",
       postLogoutRedirectUri: "http://localhost:5173/",
       scope: "openid profile email",
+      apiResource: "http://localhost:3000/api",
     });
   });
 
