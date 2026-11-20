@@ -24,6 +24,7 @@ import {
   resetInflightForTests,
   resetRefreshForTests,
   restoreSession,
+  verifyRefreshedIdToken,
   type SessionDeps,
 } from "./session";
 
@@ -278,6 +279,76 @@ describe("C4 refreshSession", () => {
       expect(window.sessionStorage.getItem(VERIFIED_KEY)).toBeNull();
     });
   }
+
+  it("a refreshed ID Token with a nonce that differs from the original is rejected", async () => {
+    const um = makeUm();
+    await seed(um, { idToken: await mint({}, { nonce: "original-nonce" }) });
+    stubFetch(async () =>
+      refreshResponse({ id_token: await mint({ jti: "r" }, { nonce: "other-nonce" }) }),
+    );
+    expect((await refreshSession(um, config.apiResource, "user-1", deps)).ok).toBe(false);
+    expect(await um.getUser()).toBeNull();
+    expect(window.sessionStorage.getItem(VERIFIED_KEY)).toBeNull();
+  });
+
+  it("a refreshed ID Token repeating the original nonce is accepted", async () => {
+    const um = makeUm();
+    await seed(um, { idToken: await mint({}, { nonce: "original-nonce" }) });
+    stubFetch(async () =>
+      refreshResponse({ id_token: await mint({ jti: "r" }, { nonce: "original-nonce" }) }),
+    );
+    expect((await refreshSession(um, config.apiResource, "user-1", deps)).ok).toBe(true);
+  });
+
+  describe("verifyRefreshedIdToken (our own checks, library bypassed)", () => {
+    it("rejects a different sub", async () => {
+      const um = makeUm();
+      const original = await mint({}, { nonce: "n1" });
+      await expect(
+        verifyRefreshedIdToken(um, await mint({ sub: "user-2" }), "user-1", original, deps),
+      ).rejects.toMatchObject({ category: "token_invalid" });
+    });
+
+    it("accepts the same sub with no nonce claim", async () => {
+      const um = makeUm();
+      await expect(
+        verifyRefreshedIdToken(um, await mint({ jti: "x" }), "user-1", await mint({}, { nonce: "n1" }), deps),
+      ).resolves.toBeUndefined();
+    });
+
+    it("accepts a nonce equal to the original", async () => {
+      const um = makeUm();
+      await expect(
+        verifyRefreshedIdToken(
+          um,
+          await mint({ jti: "x" }, { nonce: "n1" }),
+          "user-1",
+          await mint({}, { nonce: "n1" }),
+          deps,
+        ),
+      ).resolves.toBeUndefined();
+    });
+
+    it("rejects a nonce that differs from the original", async () => {
+      const um = makeUm();
+      await expect(
+        verifyRefreshedIdToken(
+          um,
+          await mint({}, { nonce: "n2" }),
+          "user-1",
+          await mint({}, { nonce: "n1" }),
+          deps,
+        ),
+      ).rejects.toMatchObject({ category: "nonce_mismatch" });
+    });
+
+    it("rejects a nonce when the original ID Token had none", async () => {
+      const um = makeUm();
+      await expect(
+        verifyRefreshedIdToken(um, await mint({}, { nonce: "n2" }), "user-1", await mint(), deps),
+      ).rejects.toMatchObject({ category: "nonce_mismatch" });
+    });
+  });
 
   it("invalid_grant clears user and marker", async () => {
     const um = makeUm();
@@ -606,6 +677,82 @@ describe("C5 logout", () => {
     expect(await logout(um)).toBe("local_only");
     expect(await um.getUser()).toBeNull();
     expect(window.sessionStorage.getItem(LOGOUT_PENDING_KEY)).toBeNull();
+  });
+
+  it("waits for an in-flight refresh and revokes the rotated refresh token", async () => {
+    const um = makeUm();
+    await seed(um);
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    const order: string[] = [];
+    let revokeBody: URLSearchParams | undefined;
+    stubFetch(async (url, init) => {
+      if (url.endsWith("/token/revocation")) {
+        order.push("revoke");
+        revokeBody = bodyOf(init);
+        return new Response(null, { status: 200 });
+      }
+      order.push("token");
+      await gate;
+      return refreshResponse({ id_token: await mint({ jti: "r" }) });
+    });
+    const assign = captureNavigation();
+    const refresh = refreshSession(um, config.apiResource, "user-1", deps);
+    await vi.waitFor(() => expect(order).toEqual(["token"]));
+    void logout(um);
+    await new Promise((r) => setTimeout(r, 30));
+    expect(order).toEqual(["token"]); // logout is still waiting for the refresh
+    release();
+    expect((await refresh).ok).toBe(true);
+    await vi.waitFor(() => expect(assign).toHaveBeenCalled());
+    expect(order).toEqual(["token", "revoke"]);
+    expect(revokeBody?.get("token")).toBe("NEW-REFRESH-TOKEN"); // the rotated token, not the stale one
+    expect(await um.getUser()).toBeNull();
+    expect(window.sessionStorage.getItem(VERIFIED_KEY)).toBeNull();
+  });
+
+  it("a refresh requested after logout started is refused and writes nothing", async () => {
+    const um = makeUm();
+    await seed(um);
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    let revokeSeen = false;
+    const fetchMock = stubFetch(async (url) => {
+      if (url.endsWith("/token/revocation")) {
+        revokeSeen = true;
+        await gate;
+        return new Response(null, { status: 200 });
+      }
+      return refreshResponse({ id_token: await mint({ jti: "late" }) });
+    });
+    const assign = captureNavigation();
+    void logout(um);
+    await vi.waitFor(() => expect(revokeSeen).toBe(true));
+    expect(await refreshSession(um, config.apiResource, "user-1", deps, SECRET_AT)).toEqual({
+      ok: false,
+    });
+    expect(callsTo(fetchMock, "/token")).toHaveLength(0);
+    release();
+    await vi.waitFor(() => expect(assign).toHaveBeenCalled());
+    expect(window.sessionStorage.getItem(VERIFIED_KEY)).toBeNull();
+    expect(await um.getUser()).toBeNull();
+  });
+
+  it("local_only: clears again after a failed signoutRedirect and re-enables refresh", async () => {
+    const um = makeUm();
+    await seed(um);
+    stubFetch(() => new Response(null, { status: 200 }));
+    vi.spyOn(um, "signoutRedirect").mockImplementation(async () => {
+      await seed(um); // a late write that landed while the redirect was being attempted
+      throw new Error("no end_session_endpoint");
+    });
+    expect(await logout(um)).toBe("local_only");
+    expect(await um.getUser()).toBeNull();
+    expect(window.sessionStorage.getItem(VERIFIED_KEY)).toBeNull();
+    expect(await restoreSession(um, deps)).toBeNull(); // a reload does not bring the session back
+    await seed(um);
+    stubFetch(async () => refreshResponse({ id_token: await mint({ jti: "again" }) }));
+    expect((await refreshSession(um, config.apiResource, "user-1", deps)).ok).toBe(true);
   });
 
   it("after logout a reload finds no session", async () => {

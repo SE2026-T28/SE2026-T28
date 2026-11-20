@@ -1,3 +1,4 @@
+import { decodeJwt } from "jose";
 import { ErrorResponse, type User, type UserManager } from "oidc-client-ts";
 import {
   resolveRemoteKeys,
@@ -75,6 +76,7 @@ export async function login(um: UserManager, apiResource: string): Promise<void>
   } catch {
     // storage unavailable: nothing to clear
   }
+  logoutActive = false; // a new login supersedes a logout that left this page frozen in bfcache
   await um.signinRedirect({
     nonce: randomNonce(),
     prompt: "consent",
@@ -283,9 +285,12 @@ export function isAccessTokenExpired(user: User, nowMs: number = Date.now()): bo
 }
 
 let refreshInflight: Promise<RefreshResult> | null = null;
+// Set once logout() has taken over: no new refresh may start or write session state afterwards.
+let logoutActive = false;
 
 export function resetRefreshForTests(): void {
   refreshInflight = null;
+  logoutActive = false;
 }
 
 // Single-flight: refresh tokens rotate, so two parallel refreshes would make the loser fail with
@@ -299,6 +304,7 @@ export function refreshSession(
   staleToken?: string,
 ): Promise<RefreshResult> {
   if (refreshInflight) return refreshInflight;
+  if (logoutActive) return Promise.resolve({ ok: false }); // logging out: never rotate/restore tokens
   const p: Promise<RefreshResult> = (async (): Promise<RefreshResult> => {
     if (staleToken) {
       const current = await um.getUser().catch(() => null);
@@ -345,24 +351,49 @@ async function doRefresh(
     const marker = storage.getItem(VERIFIED_KEY);
     const digest = await sha256Hex(user.id_token);
     if (marker !== digest) {
-      // New ID Token from the refresh response: full verification, except the nonce
-      // (OIDC Core 12.2: a refreshed ID Token need not carry one).
-      const resolveKeys = deps.resolveKeys ?? resolveRemoteKeys;
-      const { keys, algorithms } = await resolveKeys(um);
-      const claims = await verifyIdToken(user.id_token, {
-        keys,
-        algorithms,
-        issuer: um.settings.authority,
-        clientId: um.settings.client_id,
-        now: deps.now,
-      });
-      if (claims.sub !== expectedSub) throw new VerifyError("token_invalid");
+      await verifyRefreshedIdToken(um, user.id_token, expectedSub, before.id_token, deps);
+      // logout() waits for in-flight refreshes, so this only triggers if one slipped past it:
+      // never re-create the verified marker once logout owns the session
+      if (logoutActive) return { ok: false };
       storage.setItem(VERIFIED_KEY, digest);
     }
   } catch {
     return failed();
   }
   return { ok: true, accessToken: user.access_token };
+}
+
+// New ID Token from a refresh response: full verification, except that the nonce is optional
+// (OIDC Core 12.2). When a nonce IS present it must equal the original ID Token's nonce, and the
+// sub must be the one already verified. Our own sub check is independent of the library's.
+export async function verifyRefreshedIdToken(
+  um: UserManager,
+  idToken: string,
+  expectedSub: string,
+  originalIdToken: string | undefined,
+  deps: SessionDeps = {},
+): Promise<void> {
+  const resolveKeys = deps.resolveKeys ?? resolveRemoteKeys;
+  const { keys, algorithms } = await resolveKeys(um);
+  const claims = await verifyIdToken(idToken, {
+    keys,
+    algorithms,
+    issuer: um.settings.authority,
+    clientId: um.settings.client_id,
+    now: deps.now,
+  });
+  if (claims.sub !== expectedSub) throw new VerifyError("token_invalid");
+  if (claims.nonce !== undefined) {
+    let originalNonce: unknown;
+    try {
+      originalNonce = originalIdToken ? decodeJwt(originalIdToken).nonce : undefined;
+    } catch {
+      originalNonce = undefined;
+    }
+    if (typeof originalNonce !== "string" || !originalNonce || claims.nonce !== originalNonce) {
+      throw new VerifyError("nonce_mismatch");
+    }
+  }
 }
 
 // ---- C5: logout -----------------------------------------------------------------------------
@@ -378,6 +409,16 @@ export async function logout(
   um: UserManager,
   storage: Storage = window.sessionStorage,
 ): Promise<LogoutOutcome> {
+  // A refresh in flight rotates the refresh token and rewrites the stored user. Let it finish
+  // (its result is irrelevant), so we revoke the CURRENT token and nothing is written after we clear.
+  while (refreshInflight) {
+    try {
+      await refreshInflight;
+    } catch {
+      // ignored
+    }
+  }
+  logoutActive = true; // from here on refreshSession() refuses to start
   const user = await um.getUser().catch(() => null);
   const idToken = user?.id_token;
   let revoked = true;
@@ -400,6 +441,8 @@ export async function logout(
     return "redirected";
   } catch {
     storage.removeItem(LOGOUT_PENDING_KEY);
+    logoutActive = false; // we stay on this page: a new login/refresh is possible again
+    await clearSession(um, storage); // nothing may have been written back meanwhile
     return "local_only"; // e.g. Discovery has no end_session_endpoint
   }
 }
@@ -430,7 +473,7 @@ export async function processLogoutReturn(
       // unknown/expired state or Provider error: the user is already logged out locally
     }
   }
-  if (params.size > 0) window.history.replaceState(null, "", "/");
+  if (new URL(url).search !== "") window.history.replaceState(null, "", "/");
   await clearSession(um, storage); // defensive: nothing may survive a logout
   return { returned: true, revokeFailed };
 }
