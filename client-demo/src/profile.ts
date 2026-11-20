@@ -106,10 +106,11 @@ async function run(
   }
 }
 
-let inflight: Promise<ProfileResult> | null = null;
+// Keyed by who and where: a load for another user (or API) must never be answered with this one.
+const inflight = new Map<string, Promise<ProfileResult>>();
 
 export function resetProfileForTests(): void {
-  inflight = null;
+  inflight.clear();
 }
 
 // Single-flight so StrictMode's double effect (or a double click) makes one API call.
@@ -119,12 +120,14 @@ export function loadProfile(
   session: Session,
   deps: ProfileDeps = {},
 ): Promise<ProfileResult> {
-  if (inflight) return inflight;
+  const key = JSON.stringify([apiResource, session.sub]);
+  const existing = inflight.get(key);
+  if (existing) return existing;
   const p: Promise<ProfileResult> = run(um, apiResource, session, deps)
     .catch((): ProfileResult => ({ status: "error" }))
     .finally(() => {
-      if (inflight === p) inflight = null;
+      if (inflight.get(key) === p) inflight.delete(key);
     });
-  inflight = p;
+  inflight.set(key, p);
   return p;
 }

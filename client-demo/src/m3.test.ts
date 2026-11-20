@@ -527,14 +527,19 @@ describe("C3 loadProfile", () => {
     expect(await um.getUser()).not.toBeNull();
   });
 
-  it("500 and CORS 403 origin_not_allowed are generic outcomes", async () => {
+  it("500 and a CORS rejection (fetch rejects with TypeError) are generic error outcomes", async () => {
     const um = makeUm();
     await seed(um);
     stubFetch(() => jsonRes({ error: "server_error" }, 500));
     expect(await loadProfile(um, config.apiResource, session, deps)).toEqual({ status: "error" });
     resetProfileForTests();
-    stubFetch(() => jsonRes({ error: "origin_not_allowed" }, 403));
-    expect((await loadProfile(um, config.apiResource, session, deps)).status).toBe("forbidden");
+    // a browser never exposes the API's 403 origin_not_allowed: the CORS failure surfaces as a
+    // network-level TypeError, not as a response
+    stubFetch(() => {
+      throw new TypeError("Failed to fetch");
+    });
+    expect(await loadProfile(um, config.apiResource, session, deps)).toEqual({ status: "error" });
+    expect(await um.getUser()).not.toBeNull();
   });
 
   it("network error: generic error, session kept", async () => {
@@ -566,6 +571,19 @@ describe("C3 loadProfile", () => {
     ]);
     expect(a).toEqual(b);
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("concurrent loads for different users are not merged", async () => {
+    const um = makeUm();
+    await seed(um);
+    const fetchMock = stubFetch(() => jsonRes({ sub: "user-1" }));
+    const [a, b] = await Promise.all([
+      loadProfile(um, config.apiResource, { sub: "user-1" }, deps),
+      loadProfile(um, config.apiResource, { sub: "user-2" }, deps),
+    ]);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(a).toEqual({ status: "ok", sub: "user-1" });
+    expect(b).toEqual({ status: "error" }); // user-2's load is judged against user-2's sub
   });
 
   it("concurrent 401s trigger a single refresh", async () => {

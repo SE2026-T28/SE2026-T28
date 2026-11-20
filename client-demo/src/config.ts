@@ -46,7 +46,7 @@ function resolveApiResource(authority: string, override: string | undefined): st
     // the Access Token is sent to this URL: it must stay on the identity provider's origin
     throw new ConfigError(`${API_RESOURCE_ENV} must have the same origin as VITE_OIDC_AUTHORITY.`);
   }
-  return override.replace(/\/+$/, "");
+  return url.href.replace(/\/+$/, "");
 }
 
 export function readConfig(env: EnvRecord): OidcConfig {

@@ -51,6 +51,16 @@ describe("readConfig", () => {
       expect(readConfig(env).apiResource).toBe("http://localhost:3000/v2/api");
     });
 
+    it("returns the normalized URL (host case, trailing slash) for an override", () => {
+      const env = { ...valid, VITE_API_RESOURCE: "HTTP://LOCALHOST:3000/v2/api//" };
+      expect(readConfig(env).apiResource).toBe("http://localhost:3000/v2/api");
+    });
+
+    it("an uppercase-host override on the authority's origin is accepted and bare origins have no slash", () => {
+      const env = { ...valid, VITE_API_RESOURCE: "http://LocalHost:3000/" };
+      expect(readConfig(env).apiResource).toBe("http://localhost:3000");
+    });
+
     it.each([
       ["not a URL", "api"],
       ["non-http scheme", "ftp://localhost:3000/api"],
