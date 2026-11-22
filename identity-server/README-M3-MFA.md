@@ -124,12 +124,13 @@ The new test file covers:
 - challenge persistence and safe views (no raw code/hash exposed);
 - binding to interaction UID and browser context, with user identity resolved from the persisted challenge;
 - one-time consume, replay rejection and concurrent verification;
+- Provider handoff callback rejection/synchronous throw: persisted `CONSUMED` state, safe `interaction_failed` result, replay rejection and successful completion with a fresh interaction/challenge;
 - wrong-code limits that persist across a new interaction;
 - expiry persistence and cleanup;
 - interaction-bound MFA CSRF creation, reload reuse, expiry and one-time consume;
 - mock-code exposure guard outside local/test.
 
-The tests in this patch do not claim the end-to-end Provider route, cookie or CSRF cases have passed. Those require Quang's interaction-router integration. Do not mark those acceptance cases PASS until the integrated Provider tests are run.
+The tests in this patch do not claim the end-to-end Provider route, cookie or CSRF cases have passed. Those require Quang's interaction-router integration. In particular, the `interaction_failed` recovery result must be mapped by the router to a user-facing restart path that starts a fresh authorization interaction. Do not mark those acceptance cases PASS until the integrated Provider tests are run.
 
 ## Migration / schema coordination
 

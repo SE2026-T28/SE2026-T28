@@ -227,6 +227,105 @@ test("interaction handoff never finishes Provider before valid MFA", async () =>
   assert.equal(finishCalls, 1);
 });
 
+test("rejected Provider handoff keeps MFA consumed and requires a new interaction", async () => {
+  const userId = users[0]!;
+  const codes = ["781204", "905317"];
+  const service = makeService({ makeCode: () => codes.shift()! });
+  const failedInteractionUid = "mfa-handoff-provider-reject-0001";
+  const failedBrowserBinding = "browser-mfa-handoff-provider-reject-0001";
+  const failedChallenge = await service.createChallenge(
+    challengeInput(userId, failedInteractionUid, failedBrowserBinding),
+  );
+
+  let providerCalls = 0;
+  const failedHandoff = await verifyMfaAndFinishInteraction(service, {
+    interactionUid: failedInteractionUid,
+    browserBinding: failedBrowserBinding,
+    code: "781204",
+    clientId: "app04-react-demo",
+  }, async () => {
+    providerCalls++;
+    throw new Error("simulated Provider failure; must not be returned to the client");
+  });
+
+  assert.deepEqual(failedHandoff, {
+    ok: false,
+    reason: "interaction_failed",
+    recovery: "start_new_interaction",
+  });
+  assert.equal(JSON.stringify(failedHandoff).includes("simulated Provider failure"), false);
+
+  const consumed = await getPrisma().$queryRaw<Array<{ status: string; consumed_at: Date | null }>>`
+    SELECT "status", "consumed_at"
+    FROM "mfa_challenges"
+    WHERE "id" = ${failedChallenge.challenge.id}::uuid
+  `;
+  assert.equal(consumed[0]!.status, "CONSUMED");
+  assert.ok(consumed[0]!.consumed_at);
+
+  const replay = await verifyMfaAndFinishInteraction(service, {
+    interactionUid: failedInteractionUid,
+    browserBinding: failedBrowserBinding,
+    code: "781204",
+    clientId: "app04-react-demo",
+  }, async () => { providerCalls++; });
+  assert.deepEqual(replay, { ok: false, reason: "invalid" });
+  assert.equal(providerCalls, 1);
+
+  // Recovery is a fresh authorization interaction and a new challenge, never
+  // a reset/reuse of the already-consumed challenge from the failed handoff.
+  const newInteractionUid = "mfa-handoff-provider-restart-0001";
+  const newBrowserBinding = "browser-mfa-handoff-provider-restart-0001";
+  const newChallenge = await service.createChallenge(
+    challengeInput(userId, newInteractionUid, newBrowserBinding),
+  );
+  assert.equal(newChallenge.demoCode, "905317");
+
+  let restartedProviderCalls = 0;
+  const restarted = await verifyMfaAndFinishInteraction(service, {
+    interactionUid: newInteractionUid,
+    browserBinding: newBrowserBinding,
+    code: "905317",
+    clientId: "app04-react-demo",
+  }, async accountId => {
+    restartedProviderCalls++;
+    assert.equal(accountId, userId);
+  });
+  assert.deepEqual(restarted, { ok: true, userId });
+  assert.equal(restartedProviderCalls, 1);
+});
+
+test("synchronous Provider handoff throw is converted to a safe restart result", async () => {
+  const userId = users[2]!;
+  const service = makeService({ makeCode: () => "623814" });
+  const interactionUid = "mfa-handoff-provider-throw-0001";
+  const browserBinding = "browser-mfa-handoff-provider-throw-0001";
+  const created = await service.createChallenge(challengeInput(userId, interactionUid, browserBinding));
+
+  let providerCalls = 0;
+  const result = await verifyMfaAndFinishInteraction(service, {
+    interactionUid,
+    browserBinding,
+    code: "623814",
+    clientId: "app04-react-demo",
+  }, () => {
+    providerCalls++;
+    throw new Error("synchronous Provider failure");
+  });
+
+  assert.deepEqual(result, {
+    ok: false,
+    reason: "interaction_failed",
+    recovery: "start_new_interaction",
+  });
+  assert.equal(providerCalls, 1);
+
+  const stored = await getPrisma().$queryRaw<Array<{ status: string }>>`
+    SELECT "status" FROM "mfa_challenges" WHERE "id" = ${created.challenge.id}::uuid
+  `;
+  assert.equal(stored[0]!.status, "CONSUMED");
+});
+
 test("expired challenge is persisted as EXPIRED and cannot verify", async () => {
   const userId = users[4]!;
   let now = new Date();
