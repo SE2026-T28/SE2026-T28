@@ -15,6 +15,8 @@ const env = {
   OIDC_POST_LOGOUT_REDIRECT_URI: "http://localhost:5173/",
   OIDC_SCOPES: "openid profile email",
   OIDC_CORS_ORIGIN: "http://localhost:5173",
+  OIDC_COOKIE_KEYS: "a".repeat(64),
+  OIDC_ADAPTER_KEY: "b".repeat(64),
 };
 
 test("Discovery publishes the agreed issuer and public-client endpoints", async () => {
@@ -78,6 +80,11 @@ test("OIDC adapter encryption key is distinct from every cookie signing key", ()
   const second = "b".repeat(64);
   assert.throws(() => readConfig({ ...env, OIDC_COOKIE_KEYS: `${first},${second}`, OIDC_ADAPTER_KEY: second.toUpperCase() }), /must differ/);
   assert.equal(readConfig({ ...env, OIDC_COOKIE_KEYS: `${first},${second}`, OIDC_ADAPTER_KEY: "c".repeat(64) }).adapterKey, "c".repeat(64));
+});
+
+test("OIDC storage and cookie keys are required at startup", () => {
+  assert.throws(() => readConfig({ ...env, OIDC_COOKIE_KEYS: undefined }), /Missing OIDC_COOKIE_KEYS/);
+  assert.throws(() => readConfig({ ...env, OIDC_ADAPTER_KEY: undefined }), /Missing OIDC_ADAPTER_KEY/);
 });
 
 test("Production configuration is rejected while storage and keys are development-only", () => {

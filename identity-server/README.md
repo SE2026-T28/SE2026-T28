@@ -41,13 +41,13 @@ Kết quả phải có `issuer` bằng `http://localhost:3000`, cùng `authoriza
 | Scopes | `openid profile email` |
 | CORS origin | `http://localhost:5173` |
 
-M3 thêm `api:read offline_access`, `resource` mặc định local là `http://localhost:3000/api`, Access Token 300 giây và Refresh Token 3600 giây. Client phải gửi `resource` trong authorization, code exchange và refresh, đồng thời yêu cầu consent rõ ràng khi xin `offline_access`. Xem [hợp đồng M3](../docs/m3-token-logout-contract.md) để nối React và protected API. `OIDC_COOKIE_KEYS` nhận một hoặc nhiều khóa 32 byte dạng hex, phân cách bằng dấu phẩy; `OIDC_ADAPTER_KEY` là khóa 32 byte hex riêng để mã hóa payload trong PostgreSQL. Cần giữ ổn định cả hai khóa để session và token sống qua restart. Không commit các khóa này.
+M3 thêm `api:read offline_access`, `resource` mặc định local là `http://localhost:3000/api`, Access Token 300 giây và Refresh Token 3600 giây. Client phải gửi `resource` trong authorization, code exchange và refresh, đồng thời yêu cầu consent rõ ràng khi xin `offline_access`. Xem [hợp đồng M3](../docs/m3-token-logout-contract.md) để nối React và protected API. **Bắt buộc** cấu hình `OIDC_COOKIE_KEYS` (một hoặc nhiều khóa 32 byte hex, phân cách dấu phẩy) và `OIDC_ADAPTER_KEY` (khóa 32 byte hex khác) trước khi chạy server; server từ chối khởi động nếu thiếu. Giữ ổn định cả hai khóa qua restart. Không commit các khóa này.
 
 React client không có `client_secret`. Mỗi máy có thể sửa `.env` local, nhưng issuer, port và các URL client phải khớp nhau. Nếu TV3 đổi callback/origin, cập nhật cả provider, client và tài liệu trong cùng thay đổi.
 
 ## Giới hạn của O1
 
-Server dùng PostgreSQL adapter cho OIDC artifacts; payload được mã hóa AES-256-GCM, các lookup ID/index được hash. Signing keys mặc định của `oidc-provider` vẫn chỉ dành cho phát triển; server từ chối `NODE_ENV=production` đến khi có quản lý khóa ký riêng. Giao diện đăng nhập thử nghiệm mặc định của Provider đã tắt. Nếu không cấu hình `OIDC_COOKIE_KEYS` hoặc `OIDC_ADAPTER_KEY`, state đã lưu không đọc được sau restart. Row hết hạn được dọn mỗi giờ khi server chạy.
+Server dùng PostgreSQL adapter cho OIDC artifacts; payload được mã hóa AES-256-GCM, các lookup ID/index được hash. Signing keys mặc định của `oidc-provider` vẫn chỉ dành cho phát triển; server từ chối `NODE_ENV=production` đến khi có quản lý khóa ký riêng. Giao diện đăng nhập thử nghiệm mặc định của Provider đã tắt. Row artifact hết hạn được dọn mỗi giờ khi server chạy. **Tombstone grant đã thu hồi chưa được tự động dọn:** mỗi grant chỉ tạo một row, nhưng số row tăng theo số grant bị thu hồi. Giữ lại để chặn request ghi token đến muộn; theo dõi `COUNT(*)` và `pg_total_relation_size('oidc_revoked_grants')` khi vận hành. Chỉ triển khai TTL cleanup sau khi nhóm chốt giới hạn thời gian xử lý request và chứng minh không còn khả năng ghi trễ; xóa thủ công khi chưa có bằng chứng này có thể làm sống lại grant.
 
 Nếu thiếu biến môi trường hoặc issuer/origin không khớp, server dừng với thông báo cấu hình. `.env.example` chỉ chứa giá trị local mẫu, không chứa secret.
 

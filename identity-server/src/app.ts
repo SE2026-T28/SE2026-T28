@@ -1,4 +1,3 @@
-import { randomBytes } from "node:crypto";
 import express from "express";
 import { Provider, errors } from "oidc-provider";
 import { securityHeaders } from "./security/headers.js";
@@ -88,7 +87,7 @@ export function createApp(config: AppConfig, authenticateUser?: AuthenticateUser
     clientBasedCORS(_ctx, origin, client) {
       return origin === config.corsOrigin && client.clientId === config.clientId;
     },
-    cookies: { keys: config.cookieKeys ?? [randomBytes(32).toString("hex")] },
+    cookies: { keys: config.cookieKeys },
     features: {
       devInteractions: { enabled: false },
       revocation: { enabled: true },

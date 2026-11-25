@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import { fileURLToPath } from 'node:url';
 import { createServer } from 'node:net';
+import { randomBytes } from 'node:crypto';
 import { assertManagedDatabase } from '../../identity-server/scripts/test-database.mjs';
 
 const cwd = fileURLToPath(new URL('../../identity-server/', import.meta.url));
@@ -24,6 +25,8 @@ const server = spawn(process.execPath, ['dist/src/server.js'], {
     OIDC_REDIRECT_URI: 'http://localhost:5173/callback',
     OIDC_POST_LOGOUT_REDIRECT_URI: 'http://localhost:5173/',
     OIDC_SCOPES: 'openid profile email', OIDC_CORS_ORIGIN: 'http://localhost:5173',
+    OIDC_COOKIE_KEYS: randomBytes(32).toString('hex'),
+    OIDC_ADAPTER_KEY: randomBytes(32).toString('hex'),
   },
   stdio: 'ignore',
 });

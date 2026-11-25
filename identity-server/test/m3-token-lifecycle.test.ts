@@ -40,6 +40,10 @@ test("M3: API resource, rotated refresh, revocation and RP logout", async () => 
     const token = (fields: Record<string, string>) => fetch(`${issuer}/token`, {
       method: "POST", headers: { "content-type": "application/x-www-form-urlencoded", connection: "close" }, body: new URLSearchParams(fields),
     });
+    const tokenRevoke = (value: string, hint: "access_token" | "refresh_token") => fetch(`${issuer}/token/revocation`, {
+      method: "POST", headers: { "content-type": "application/x-www-form-urlencoded", connection: "close" },
+      body: new URLSearchParams({ client_id: "app04-react-demo", token: value, token_type_hint: hint }),
+    });
     type TokenSet = { access_token: string; refresh_token: string; id_token: string; expires_in: number };
     const issueTokens = async (state: string, apiResource = true): Promise<TokenSet> => {
       const verifier = randomBytes(32).toString("base64url");
@@ -143,6 +147,12 @@ test("M3: API resource, rotated refresh, revocation and RP logout", async () => 
     assert.equal(revoked.status, 400);
     assert.equal((await revoked.json() as { error: string }).error, "invalid_grant");
     assert.equal(await context.getProvider().AccessToken.find(secondTokens.access_token), undefined);
+    const accessOnly = await issueTokens("m3-access-revoke-state", false);
+    const revokedAccess = await tokenRevoke(accessOnly.access_token, "access_token");
+    assert.equal(revokedAccess.status, 200);
+    assert.equal(await context.getProvider().AccessToken.find(accessOnly.access_token), undefined);
+    const afterAccessRevoke = await issueTokens("m3-after-access-revoke", false);
+    assert.ok(afterAccessRevoke.access_token, "Re-authorize after Access Token revocation must issue a new code and token");
     const replayGrant = await issueTokens("m3-replay-state");
     const rotated = await refresh(replayGrant.refresh_token);
     assert.equal(rotated.status, 200);

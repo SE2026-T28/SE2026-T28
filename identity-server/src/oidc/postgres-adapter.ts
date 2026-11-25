@@ -23,8 +23,6 @@ async function lockGrant(tx: Prisma.TransactionClient, grantId: string): Promise
   await tx.$queryRaw`SELECT 1 AS acquired FROM (SELECT pg_advisory_xact_lock(${lockId})) AS grant_lock`;
 }
 
-const developmentKey = randomBytes(32);
-
 type EncryptedPayload = { v: 1; iv: string; tag: string; data: string };
 
 function encrypt(payload: AdapterPayload, key: Buffer): EncryptedPayload {
@@ -49,8 +47,8 @@ function decrypt(envelope: unknown, key: Buffer): AdapterPayload {
 export class PostgresOidcAdapter implements Adapter {
   private readonly key: Buffer;
 
-  constructor(private readonly model: string, keyHex?: string) {
-    this.key = keyHex ? Buffer.from(keyHex, "hex") : developmentKey;
+  constructor(private readonly model: string, keyHex: string) {
+    this.key = Buffer.from(keyHex, "hex");
     if (this.key.length !== 32) throw new Error("OIDC adapter key must be 32 bytes");
   }
 
@@ -60,7 +58,9 @@ export class PostgresOidcAdapter implements Adapter {
       : typeof payload.exp === "number" ? payload.exp * 1000 : undefined;
     const data = {
       payload: encrypt(payload, this.key) as unknown as Prisma.InputJsonValue,
-      grantId: indexedValue(payload, "grantId"),
+      // A Grant has no payload.grantId. Index its own ID so a revocation
+      // fence also removes the Grant instead of leaving a reusable dead grant.
+      grantId: this.model === "Grant" ? key : indexedValue(payload, "grantId"),
       uid: indexedValue(payload, "uid"),
       userCode: indexedValue(payload, "userCode"),
       expiresAt: expiry === undefined ? null : new Date(expiry),
@@ -126,7 +126,9 @@ export class PostgresOidcAdapter implements Adapter {
       await tx.oidcRevokedGrant.upsert({ where: { id }, create: { id }, update: {} });
       // Delete across models while holding the fence. Provider invokes this
       // method on one adapter model, but the grant spans several token types.
-      await tx.oidcArtifact.deleteMany({ where: { grantId: id } });
+      await tx.oidcArtifact.deleteMany({ where: {
+        OR: [{ grantId: id }, { model: "Grant", id }],
+      } });
     });
   }
 }
