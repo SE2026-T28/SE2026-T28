@@ -23,6 +23,8 @@ export const PROFILE_MESSAGES = {
 
 export const LOGOUT_WARNING =
   "Token revocation failed: access tokens already issued may stay valid for up to 300 seconds.";
+export const LOGOUT_CLEAR_FAILED =
+  "Logout failed: the local session could not be cleared on this device, so you may still be signed in. Close this tab or clear site data, then try again.";
 export const LOGOUT_LOCAL_ONLY =
   "Could not reach the identity provider to end its session. You are logged out of this app only.";
 
@@ -102,8 +104,9 @@ function Dashboard({
   );
 }
 
-function LoggedOutNotice({ kind }: { kind: "expired" | "logged_out" | "revoke_failed" | "local_only" }) {
+function LoggedOutNotice({ kind }: { kind: Notice }) {
   if (kind === "expired") return <p role="status">{PROFILE_MESSAGES.expired}</p>;
+  if (kind === "clear_failed") return <p role="alert">{LOGOUT_CLEAR_FAILED}</p>; // never "You are logged out."
   return (
     <>
       <p role="status">You are logged out.</p>
@@ -113,7 +116,7 @@ function LoggedOutNotice({ kind }: { kind: "expired" | "logged_out" | "revoke_fa
   );
 }
 
-type Notice = "expired" | "logged_out" | "revoke_failed" | "local_only";
+type Notice = "expired" | "logged_out" | "revoke_failed" | "local_only" | "clear_failed";
 
 function Home({ initialSession }: { initialSession?: Session }) {
   const [error, setError] = useState<string | null>(null);
@@ -209,18 +212,20 @@ function Home({ initialSession }: { initialSession?: Session }) {
       setPending(true);
       setSession(null);
       setLoggingOut(true);
+      setNotice(null);
     });
-    let outcome: Awaited<ReturnType<typeof logout>> = "local_only";
+    // fail closed: if logout() cannot even start (e.g. no config) nothing was cleared
+    let outcome: Awaited<ReturnType<typeof logout>> = "clear_failed";
     try {
       outcome = await logout(getUserManager());
     } catch {
-      // logout() clears local state first; a throw before that only means we could not even start
+      // logout() itself never throws; getUserManager() can (ConfigError)
     }
     // "redirected": the browser is navigating to the Provider. The view stays the fixed
     // "Logging out…" screen with no protected data; a bfcache restore resets it (onPageShow).
     if (outcome === "redirected") return;
-    setLoggingOut(false); // local_only: the redirect never started, show the final state here
-    setNotice("local_only");
+    setLoggingOut(false); // the redirect never started, show the final state here
+    setNotice(outcome); // "local_only" (local cleared, IdP not reached) or "clear_failed" (not logged out)
     setPending(false);
   }
 
@@ -256,6 +261,11 @@ function Home({ initialSession }: { initialSession?: Session }) {
     <main>
       <h1>APP-04 Demo Client</h1>
       {notice && <LoggedOutNotice kind={notice} />}
+      {notice === "clear_failed" && (
+        <button type="button" onClick={doLogout} disabled={pending}>
+          Retry logout
+        </button>
+      )}
       <button type="button" onClick={doLogin} disabled={pending}>
         Login
       </button>

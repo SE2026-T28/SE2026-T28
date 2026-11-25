@@ -11,13 +11,13 @@ Phạm vi: `client-demo/` trên nhánh `feat/m3-client-c3-c5`. Hợp đồng g�
 
 | Mục | Giá trị |
 | --- | --- |
-| Commit được kiểm thử | `77d2dd9` (mã nguồn và test; commit docs sau đó không đổi mã) |
+| Commit được kiểm thử | `<SHA>` (sửa review PR #30 6022783087; trước đó `77d2dd9`) |
 | Lệnh | `cd client-demo && npm test && npm run typecheck && npm run build && npm audit --audit-level=high` |
 | Node | v24.22.1 (Windows 11); nhóm chốt 24.22.0 |
 | vitest / happy-dom | 5.0.4 / 21.0.4 |
-| `npm test` | 6 file, **165 test PASS**, 0 fail |
+| `npm test` | 7 file, **187 test PASS**, 0 fail |
 | `npm run typecheck` | PASS (không lỗi) |
-| `npm run build` | PASS (69 module, `dist/assets/index-*.js` 321.26 kB, gzip 96.47 kB) |
+| `npm run build` | PASS (69 module, `dist/assets/index-*.js` 321.88 kB, gzip 96.67 kB) |
 | `npm audit --audit-level=high` | PASS (`found 0 vulnerabilities`) |
 
 ## Ma trận
@@ -57,8 +57,18 @@ Phạm vi: `client-demo/` trên nhánh `feat/m3-client-c3-c5`. Hợp đồng g�
 | C5-10 | Cờ `app04.logout.pending`/`revoke_failed`: `login()` xóa trước khi chuyển hướng; `pageshow persisted` đọc-một-lần và hiện cảnh báo 300 s | `m3.test.ts > C3 login request > clears stale logout flags …`; `App.m3.test.tsx > … a persisted pageshow after a failed-revocation logout …` | PASS |
 | C5-11 | Sau logout `redirected` (trang đóng băng trong bfcache), đăng nhập ở trang khác rồi Back: `pageshow persisted` gọi `endLogoutGuard()` nên refresh chạy lại được (không bị báo hết phiên) | `m3.test.ts > C5 logout hardening > endLogoutGuard: …`; `App.m3.test.tsx > bfcache restore after logout > a restored page can refresh …` | PASS |
 | C5-12 | `logout()` chỉ chờ refresh treo tối đa 5 s (fake timers: 4999 ms chưa thu hồi, 5000 ms thì thu hồi); refresh đến muộn trả `ok:false` và xóa user/marker, không ghi lại | `m3.test.ts > C5 logout hardening > a hung refresh delays logout by at most the bounded wait; …` | PASS |
-| C5-13 | `logout()` ném lỗi (storage lỗi) thì cờ chặn refresh được đặt lại, refresh hoạt động lại | `m3.test.ts > C5 logout hardening > a logout that throws resets the guard …` | PASS |
+| C5-13 | `logout()` không xóa được phiên thì trả `clear_failed` (không ném), cờ chặn refresh được đặt lại, refresh hoạt động lại | `m3.test.ts > C5 logout hardening > a logout that cannot clear resets the guard …`; `logout-failure.test.ts > … clear_failed resets the guard …` | PASS |
 | C5-14 | `pageshow persisted` xóa thông báo cũ (cảnh báo thu hồi lỗi không còn sau lần khôi phục thứ hai) | `App.m3.test.tsx > bfcache restore after logout > a persisted pageshow clears the previous notice` | PASS |
+| C5-15 | Lỗi `removeItem` marker -> `clear_failed`, marker còn (báo trung thực), user vẫn bị xóa, không redirect, không cờ pending | `logout-failure.test.ts > marker removeItem throws …` | PASS |
+| C5-16 | `removeUser()` reject / user store `removeItem` ném SecurityError -> `clear_failed`, user còn trong store, marker vẫn bị xóa, không redirect | `logout-failure.test.ts > userManager.removeUser rejects …`, `… user store removeItem throws SecurityError …` | PASS |
+| C5-17 | Không đọc lại được (user store `getItem` / marker `getItem` ném) -> `clear_failed` (fail closed); mọi method storage ném -> không ném, `clear_failed` | `logout-failure.test.ts > … getItem throws (cannot read back) …`, `… marker getItem throws …`, `… whole storage denied …` | PASS |
+| C5-18 | Thu hồi lỗi + xóa lỗi -> `clear_failed`, không đặt cờ cảnh báo thu hồi | `logout-failure.test.ts > revocation fails AND clear fails …` | PASS |
+| C5-19 | `localStorage` ném lỗi không ảnh hưởng (logout không dùng); `setItem` cờ riêng bị QuotaExceeded -> cờ best effort, vẫn redirect, đã xóa sạch | `logout-failure.test.ts > localStorage access throwing …`, `… QuotaExceeded when writing our flags …` | PASS |
+| C5-20 | `signoutRedirect` lỗi sau khi xóa sạch -> `local_only`; lỗi và lần xóa lại cũng lỗi (ghi muộn) -> `clear_failed`, không bao giờ `local_only`; thiếu `end_session_endpoint` -> `local_only`, reload không có phiên | `logout-failure.test.ts > signoutRedirect fails after a clean local clear …`, `… and the re-clear fails …`, `… end_session_endpoint missing …` | PASS |
+| C5-21 | UI: `clear_failed` hiện alert "Logout failed …", KHÔNG có "You are logged out." / thông báo `local_only`, không Dashboard, không redirect; "Retry logout" thành công khi storage hồi phục; `local_only` vẫn được gắn nhãn khi đã xóa sạch; bấm Logout hai lần chỉ thu hồi một lần | `App.m3.test.tsx > logout UI: clear failures never look like success > *` (4 test) | PASS |
+| C5-22 | `clearAndVerify` fail closed: một bước xóa ném (`removeItem`) thì `clear_failed` dù đọc lại trông sạch (không cần mock `removeUser`) | `logout-failure.test.ts > removeItem throws but read-back looks clean …`; `m3.test.ts > … a logout that cannot clear resets the guard …` | PASS |
+| C5-23 | Epoch logout: refresh treo quá 5 s, logout kết thúc `local_only` (`signoutRedirect` reject, hoặc thiếu `end_session_endpoint`) rồi mới thả refresh -> kết quả `ok:false`, user `null`, marker `null`, reload không có phiên | `logout-failure.test.ts > late refresh after a bounded-wait logout … > local_only (signoutRedirect rejects) …`, `… local_only (no end_session_endpoint) …` | PASS |
+| C5-24 | Cùng kịch bản với `clear_failed`: kết quả muộn bị bỏ, không ghi marker, `ok:false`; refresh bắt đầu SAU logout thất bại không bị epoch chặn | `logout-failure.test.ts > … clear_failed: late refresh result is discarded too …`, `… a refresh started after the failed logout is not affected …` | PASS |
 | ST-01 | `localStorage` rỗng suốt login, refresh, gọi API, logout (token chỉ ở `sessionStorage`) | `m3.test.ts > storage > localStorage stays empty …` | PASS |
 | M2-REG | Toàn bộ test M2 còn lại (callback, nonce, verify, restore, config) | `session.test.ts`, `App.test.tsx`, `auth.test.ts`, `config.test.ts` (phần M2) | PASS |
 

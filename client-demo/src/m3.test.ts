@@ -926,7 +926,7 @@ describe("C5 logout hardening", () => {
     expect(window.sessionStorage.getItem(VERIFIED_KEY)).toBeNull();
   });
 
-  it("a logout that throws resets the guard so refresh works again", async () => {
+  it("a logout that cannot clear resets the guard so refresh works again", async () => {
     const um = makeUm();
     await seed(um);
     stubFetch(() => new Response(null, { status: 200 }));
@@ -940,7 +940,8 @@ describe("C5 logout hardening", () => {
         throw new Error("storage denied");
       },
     } as unknown as Storage;
-    await expect(logout(um, broken)).rejects.toThrow("storage denied");
+    // removeUser succeeds and the read-back looks clean: only the failed removeItem makes this fail closed
+    expect(await logout(um, broken)).toBe("clear_failed"); // reported, never thrown, never a success
     await seed(um);
     stubFetch(async () => refreshResponse({ id_token: await mint({ jti: "after-throw" }) }));
     expect((await refreshSession(um, config.apiResource, "user-1", deps)).ok).toBe(true);

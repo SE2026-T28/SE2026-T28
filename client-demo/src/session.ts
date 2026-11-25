@@ -287,6 +287,10 @@ export function isAccessTokenExpired(user: User, nowMs: number = Date.now()): bo
 let refreshInflight: Promise<RefreshResult> | null = null;
 // Set once logout() has taken over: no new refresh may start or write session state afterwards.
 let logoutActive = false;
+// Monotonic: bumped when logout stops waiting for in-flight refreshes and takes over. A refresh that began before the bump and finishes after
+// it is stale even if logoutActive was reset meanwhile (local_only / clear_failed): it must not
+// keep the user the library just stored, nor write the verified marker.
+let logoutEpoch = 0;
 
 // A logout that navigated away can leave this page frozen in bfcache with the guard still set.
 // When such a page is restored the logout is over: the app calls this before re-checking the session.
@@ -341,6 +345,8 @@ async function doRefresh(
     await clearSession(um, storage); // revoked / expired / unverifiable: never keep it
     return { ok: false };
   };
+  const epoch = logoutEpoch;
+  const superseded = (): boolean => logoutActive || logoutEpoch !== epoch;
   const before = await um.getUser().catch(() => null);
   if (!before?.refresh_token) return failed();
   let user: User | null;
@@ -352,7 +358,7 @@ async function doRefresh(
   } catch {
     return failed(); // invalid_grant, revoked, network: details are never surfaced
   }
-  if (logoutActive) {
+  if (superseded()) {
     // logout() stopped waiting for this refresh: the library may already have stored the new user
     await um.removeUser().catch(() => {});
     return { ok: false };
@@ -365,7 +371,10 @@ async function doRefresh(
       await verifyRefreshedIdToken(um, user.id_token, expectedSub, before.id_token, deps);
       // logout() waits for in-flight refreshes, so this only triggers if one slipped past it:
       // never re-create the verified marker once logout owns the session
-      if (logoutActive) return { ok: false };
+      if (superseded()) {
+        await um.removeUser().catch(() => {});
+        return { ok: false };
+      }
       storage.setItem(VERIFIED_KEY, digest);
     }
   } catch {
@@ -412,13 +421,40 @@ export async function verifyRefreshedIdToken(
 export const LOGOUT_PENDING_KEY = "app04.logout.pending"; // set just before RP-initiated logout
 export const LOGOUT_WARNING_KEY = "app04.logout.revoke_failed"; // non-sensitive flag, no token text
 
-export type LogoutOutcome = "redirected" | "local_only";
+// local_only: local state verified cleared, Provider session NOT ended.
+// clear_failed: the local session or verified marker could not be removed/verified: NOT logged out.
+export type LogoutOutcome = "redirected" | "local_only" | "clear_failed";
 
 // Upper bound for waiting on an in-flight refresh before logout proceeds anyway (hung token endpoint).
 export const LOGOUT_REFRESH_WAIT_MS = 5000;
 
-// Order matters: (1) revoke at the Provider, (2) capture id_token + wipe client state,
-// (3) end the Provider session. RP logout alone never revokes tokens.
+// Best-effort wipe of every auth artifact, each step on its own (a throw in one never skips the
+// next), then VERIFY by reading back. true only when no stored user and no verified marker remain.
+// A read that throws counts as "cannot prove it is gone" -> false (fail closed).
+async function clearAndVerify(um: UserManager, storage: Storage): Promise<boolean> {
+  let clean = true;
+  try {
+    storage.removeItem(VERIFIED_KEY);
+  } catch {
+    clean = false;
+  }
+  try {
+    await um.removeUser();
+  } catch {
+    clean = false;
+  }
+  try {
+    if (!clean) return false; // a remove step threw: fail closed even if the read-back looks clean
+    if (storage.getItem(VERIFIED_KEY) !== null) return false;
+    return (await um.getUser()) === null;
+  } catch {
+    return false;
+  }
+}
+
+// Order matters: (1) revoke at the Provider, (2) capture id_token + wipe client state (verified),
+// (3) end the Provider session. RP logout alone never revokes tokens. Never throws and never
+// reports success unless the local session was verified gone: otherwise "clear_failed".
 export async function logout(
   um: UserManager,
   storage: Storage = window.sessionStorage,
@@ -442,6 +478,9 @@ export async function logout(
   } finally {
     clearTimeout(timer);
   }
+  // Bumped only now: a refresh that finished inside the wait is honoured (logout revokes its rotated
+  // token). Any refresh still running after the wait is stale, whatever the outcome below.
+  logoutEpoch++;
   logoutActive = true; // from here on refreshSession() refuses to start
   try {
     const user = await um.getUser().catch(() => null);
@@ -454,25 +493,37 @@ export async function logout(
     } catch {
       revoked = false; // still log out; warn after the redirect returns
     }
-    storage.removeItem(VERIFIED_KEY);
-    await um.removeUser().catch(() => {});
-    storage.removeItem(LOGOUT_WARNING_KEY);
-    if (!revoked) storage.setItem(LOGOUT_WARNING_KEY, "1");
-    storage.setItem(LOGOUT_PENDING_KEY, "1");
+    if (!(await clearAndVerify(um, storage))) {
+      logoutActive = false; // still on this page, session may be alive: retry/refresh stay possible
+      return "clear_failed";
+    }
+    // our own flags are best effort: losing them only loses the post-return notice
+    try {
+      storage.removeItem(LOGOUT_WARNING_KEY);
+      if (!revoked) storage.setItem(LOGOUT_WARNING_KEY, "1");
+      storage.setItem(LOGOUT_PENDING_KEY, "1");
+    } catch {
+      // storage unavailable
+    }
     try {
       // state: {} makes the library send a state it can match on return; the flow also works
       // when the Provider does not echo it.
       await um.signoutRedirect({ ...(idToken ? { id_token_hint: idToken } : {}), state: {} });
       return "redirected"; // the guard stays set until navigation (or endLogoutGuard on bfcache restore)
     } catch {
-      storage.removeItem(LOGOUT_PENDING_KEY);
+      try {
+        storage.removeItem(LOGOUT_PENDING_KEY);
+      } catch {
+        // storage unavailable
+      }
       logoutActive = false; // we stay on this page: a new login/refresh is possible again
-      await clearSession(um, storage); // nothing may have been written back meanwhile
-      return "local_only"; // e.g. Discovery has no end_session_endpoint
+      // nothing may have been written back meanwhile: wipe and verify again
+      // local_only e.g. Discovery has no end_session_endpoint
+      return (await clearAndVerify(um, storage)) ? "local_only" : "clear_failed";
     }
-  } catch (e) {
-    logoutActive = false; // logout itself threw (e.g. storage unavailable): do not leave the guard stuck
-    throw e;
+  } catch {
+    logoutActive = false; // unexpected throw: do not leave the guard stuck, never claim success
+    return "clear_failed";
   }
 }
 

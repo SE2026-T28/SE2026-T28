@@ -10,7 +10,7 @@ import {
 import { User } from "oidc-client-ts";
 import { StrictMode } from "react";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { App, LOGOUT_LOCAL_ONLY, LOGOUT_WARNING, PROFILE_MESSAGES } from "./App";
+import { App, LOGOUT_CLEAR_FAILED, LOGOUT_LOCAL_ONLY, LOGOUT_WARNING, PROFILE_MESSAGES } from "./App";
 import type { OidcConfig } from "./config";
 import { getUserManager, resetRuntimeForTests } from "./runtime";
 import { LOGOUT_PENDING_KEY, LOGOUT_WARNING_KEY, VERIFIED_KEY } from "./session";
@@ -414,6 +414,70 @@ describe("logout UI", () => {
       window.dispatchEvent(ev);
     });
     expect(screen.getByTestId("api-sub")).toBeTruthy();
+  });
+});
+
+describe("logout UI: clear failures never look like success (PR #30 review 6022783087)", () => {
+  async function openDashboard() {
+    await seedVerifiedUser();
+    const fetchMock = stub((url) =>
+      url.endsWith("/token/revocation") ? new Response(null, { status: 200 }) : json({ sub: "user-1" }),
+    );
+    renderStrict();
+    await screen.findByTestId("api-sub");
+    return fetchMock;
+  }
+
+  it("removeUser rejects: error alert, no 'You are logged out.', no dashboard, no redirect; retry works", async () => {
+    await openDashboard();
+    const assign = spyNavigation();
+    const remove = vi.spyOn(getUserManager(), "removeUser").mockRejectedValue(new Error("boom"));
+    fireEvent.click(screen.getByRole("button", { name: "Logout" }));
+    expect((await screen.findByRole("alert")).textContent).toBe(LOGOUT_CLEAR_FAILED);
+    expect(screen.queryByText("You are logged out.")).toBeNull();
+    expect(screen.queryByText(LOGOUT_LOCAL_ONLY)).toBeNull();
+    expect(screen.queryByTestId("api-sub")).toBeNull();
+    expect(screen.queryByText("Logged in")).toBeNull();
+    expect(assign).not.toHaveBeenCalled();
+    remove.mockRestore(); // storage recovers: Retry logout now clears and redirects
+    fireEvent.click(screen.getByRole("button", { name: "Retry logout" }));
+    await waitFor(() => expect(assign).toHaveBeenCalledTimes(1));
+    expect(await getUserManager().getUser()).toBeNull();
+    expect(window.sessionStorage.getItem(VERIFIED_KEY)).toBeNull();
+  });
+
+  it("signoutRedirect fails after a clean clear: local_only notice (still labeled, verified clear)", async () => {
+    await openDashboard();
+    vi.spyOn(getUserManager(), "signoutRedirect").mockRejectedValue(new Error("no endpoint"));
+    fireEvent.click(screen.getByRole("button", { name: "Logout" }));
+    expect((await screen.findByText(LOGOUT_LOCAL_ONLY)).textContent).toBe(LOGOUT_LOCAL_ONLY);
+    expect(screen.queryByText(LOGOUT_CLEAR_FAILED)).toBeNull();
+    expect(await getUserManager().getUser()).toBeNull();
+    expect(window.sessionStorage.getItem(VERIFIED_KEY)).toBeNull();
+  });
+
+  it("signoutRedirect fails and the re-clear fails: clear_failed, not local_only", async () => {
+    await openDashboard();
+    const um = getUserManager();
+    vi.spyOn(um, "signoutRedirect").mockImplementation(async () => {
+      await seedVerifiedUser();
+      vi.spyOn(um, "removeUser").mockRejectedValue(new Error("boom"));
+      throw new Error("no endpoint");
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Logout" }));
+    expect((await screen.findByRole("alert")).textContent).toBe(LOGOUT_CLEAR_FAILED);
+    expect(screen.queryByText(LOGOUT_LOCAL_ONLY)).toBeNull();
+    expect(screen.queryByText("You are logged out.")).toBeNull();
+  });
+
+  it("double click on Logout revokes once (the button is gone after the first click)", async () => {
+    const fetchMock = await openDashboard();
+    const assign = spyNavigation();
+    const btn = screen.getByRole("button", { name: "Logout" });
+    fireEvent.click(btn);
+    fireEvent.click(btn);
+    await waitFor(() => expect(assign).toHaveBeenCalledTimes(1));
+    expect(calls(fetchMock, "/token/revocation")).toHaveLength(1);
   });
 });
 
