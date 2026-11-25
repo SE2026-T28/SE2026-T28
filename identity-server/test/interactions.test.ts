@@ -11,6 +11,7 @@ const config = readConfig({
   OIDC_CLIENT_ID: "app04-react-demo", OIDC_REDIRECT_URI: "http://localhost:5173/callback",
   OIDC_POST_LOGOUT_REDIRECT_URI: "http://localhost:5173/", OIDC_SCOPES: "openid profile email",
   OIDC_CORS_ORIGIN: "http://localhost:5173",
+  OIDC_COOKIE_KEYS: "a".repeat(64), OIDC_ADAPTER_KEY: "b".repeat(64),
 });
 
 async function serve(run: (issuer: string) => Promise<void>, authenticateUser?: Parameters<typeof createApp>[1]) {

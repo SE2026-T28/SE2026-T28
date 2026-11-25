@@ -16,3 +16,32 @@ model User {
 
   @@map("users")
 }
+
+// One row per oidc-provider model/id. Adapter hashes lookup IDs and indexed
+// identifiers, and encrypts payloads with a separately configured AES key.
+model OidcArtifact {
+  model      String    @db.VarChar(64)
+  id         String    @db.VarChar(512)
+  payload    Json      @db.JsonB
+  grantId    String?   @map("grant_id") @db.VarChar(512)
+  uid        String?   @db.VarChar(512)
+  userCode   String?   @map("user_code") @db.VarChar(512)
+  expiresAt  DateTime? @map("expires_at") @db.Timestamptz(6)
+  consumedAt DateTime? @map("consumed_at") @db.Timestamptz(6)
+
+  @@id([model, id])
+  @@index([model, uid])
+  @@index([model, userCode])
+  @@index([model, grantId])
+  @@index([expiresAt])
+  @@map("oidc_artifacts")
+}
+
+// A revocation fence survives deletion of the grant's current artifacts.
+// Concurrent refresh upserts consult it under the same transaction lock.
+model OidcRevokedGrant {
+  id        String   @id @db.VarChar(64)
+  revokedAt DateTime @default(now()) @map("revoked_at") @db.Timestamptz(6)
+
+  @@map("oidc_revoked_grants")
+}

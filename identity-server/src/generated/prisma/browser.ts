@@ -22,3 +22,13 @@ export * from './enums.js';
  * 
  */
 export type User = Prisma.UserModel
+/**
+ * Model OidcArtifact
+ * 
+ */
+export type OidcArtifact = Prisma.OidcArtifactModel
+/**
+ * Model OidcRevokedGrant
+ * 
+ */
+export type OidcRevokedGrant = Prisma.OidcRevokedGrantModel

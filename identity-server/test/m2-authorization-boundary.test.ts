@@ -29,6 +29,7 @@ before(async () => {
     postLogoutRedirectUri: "http://localhost:5173/",
     scopes: ["openid", "profile", "email"],
     corsOrigin: "http://localhost:5173",
+    cookieKeys: ["a".repeat(64)], adapterKey: "b".repeat(64),
   }).listen(port);
   await once(server, "listening");
 

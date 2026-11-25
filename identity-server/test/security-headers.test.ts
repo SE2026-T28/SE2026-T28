@@ -53,6 +53,7 @@ test('Integrated registration and health routes keep S4 headers and A1 CORS', as
     postLogoutRedirectUri: 'http://localhost:5173/',
     scopes: ['openid', 'profile', 'email'],
     corsOrigin: 'http://localhost:5173',
+    cookieKeys: ['a'.repeat(64)], adapterKey: 'b'.repeat(64),
   });
   const server = app.listen(0, '127.0.0.1');
   try {
