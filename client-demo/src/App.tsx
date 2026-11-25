@@ -1,23 +1,69 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import { ConfigError } from "./config";
-import { currentPath, getUserManager, takeCallbackUrl } from "./runtime";
+import { loadProfile, type ProfileResult } from "./profile";
+import { currentPath, getConfig, getUserManager, takeCallbackUrl, takeLogoutReturn } from "./runtime";
 import {
   ERROR_MESSAGES,
+  endLogoutGuard,
   handleCallbackOnce,
   login,
   logout,
+  processLogoutReturn,
   restoreSession,
   type CallbackResult,
   type Session,
 } from "./session";
 
+export const PROFILE_MESSAGES = {
+  forbidden: "Access to the profile API was not granted (insufficient scope).",
+  expired: "Your session expired. Please log in again.",
+  error: "Could not load the profile. Try again later.",
+} as const;
+
+export const LOGOUT_WARNING =
+  "Token revocation failed: access tokens already issued may stay valid for up to 300 seconds.";
+export const LOGOUT_CLEAR_FAILED =
+  "Logout failed: the local session could not be cleared on this device, so you may still be signed in. Close this tab or clear site data, then try again.";
+export const LOGOUT_LOCAL_ONLY =
+  "Could not reach the identity provider to end its session. You are logged out of this app only.";
+
+type ProfileState = { status: "loading" } | ProfileResult;
+
+// Verified ID Token session in, API data out. Nothing here is rendered for a user that is not verified.
 function Dashboard({
   session,
   onLogout,
+  onExpired,
 }: {
   session: Session;
   onLogout: () => void;
+  onExpired: () => void;
 }) {
+  const [profile, setProfile] = useState<ProfileState>({ status: "loading" });
+  const [attempt, setAttempt] = useState(0);
+  const expiredRef = useRef(onExpired); // keeps the effect from re-running on every parent render
+  expiredRef.current = onExpired;
+
+  useEffect(() => {
+    let active = true;
+    setProfile({ status: "loading" });
+    let loading: Promise<ProfileResult>;
+    try {
+      loading = loadProfile(getUserManager(), getConfig().apiResource, session);
+    } catch {
+      loading = Promise.resolve({ status: "error" });
+    }
+    loading.then((r) => {
+      if (!active) return;
+      if (r.status === "expired") expiredRef.current();
+      else setProfile(r);
+    });
+    return () => {
+      active = false;
+    };
+  }, [session, attempt]);
+
   return (
     <main>
       <h1>APP-04 Demo Client</h1>
@@ -32,6 +78,25 @@ function Dashboard({
           </>
         )}
       </dl>
+      <section aria-label="Protected API profile">
+        <h2>Protected API</h2>
+        {profile.status === "loading" && <p>Loading profile…</p>}
+        {profile.status === "ok" && (
+          <dl>
+            <dt>API sub</dt>
+            <dd data-testid="api-sub">{profile.sub}</dd>
+          </dl>
+        )}
+        {profile.status === "forbidden" && <p role="alert">{PROFILE_MESSAGES.forbidden}</p>}
+        {profile.status === "error" && (
+          <>
+            <p role="alert">{PROFILE_MESSAGES.error}</p>
+            <button type="button" onClick={() => setAttempt((n) => n + 1)}>
+              Retry
+            </button>
+          </>
+        )}
+      </section>
       <button type="button" onClick={onLogout}>
         Logout
       </button>
@@ -39,17 +104,41 @@ function Dashboard({
   );
 }
 
-function Home() {
+function LoggedOutNotice({ kind }: { kind: Notice }) {
+  if (kind === "expired") return <p role="status">{PROFILE_MESSAGES.expired}</p>;
+  if (kind === "clear_failed") return <p role="alert">{LOGOUT_CLEAR_FAILED}</p>; // never "You are logged out."
+  return (
+    <>
+      <p role="status">You are logged out.</p>
+      {kind === "revoke_failed" && <p role="alert">{LOGOUT_WARNING}</p>}
+      {kind === "local_only" && <p role="alert">{LOGOUT_LOCAL_ONLY}</p>}
+    </>
+  );
+}
+
+type Notice = "expired" | "logged_out" | "revoke_failed" | "local_only" | "clear_failed";
+
+function Home({ initialSession }: { initialSession?: Session }) {
   const [error, setError] = useState<string | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
-  const [ready, setReady] = useState(false);
+  const [session, setSession] = useState<Session | null>(initialSession ?? null);
+  const [ready, setReady] = useState(initialSession !== undefined);
   const [pending, setPending] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
+  const [notice, setNotice] = useState<Notice | null>(null);
 
   useEffect(() => {
+    if (initialSession) return;
     let active = true;
     let restoring: Promise<Session | null>;
     try {
-      restoring = restoreSession(getUserManager());
+      const um = getUserManager();
+      // post-logout return first (consumes the logout flags), then whatever session is left
+      restoring = takeLogoutReturn()
+        .then((r) => {
+          if (r.returned && active) setNotice(r.revokeFailed ? "revoke_failed" : "logged_out");
+        })
+        .catch(() => {})
+        .then(() => restoreSession(um));
     } catch (e) {
       if (e instanceof ConfigError) setError(e.message);
       restoring = Promise.resolve(null);
@@ -64,6 +153,42 @@ function Home() {
     return () => {
       active = false;
     };
+  }, [initialSession]);
+
+  // Back/forward cache restores the old DOM without running effects. Hide everything at once
+  // (no protected data while the async re-check runs, and no stuck "pending" Login button), then
+  // consume logout flags left by a logout that navigated away and re-check the stored session.
+  useEffect(() => {
+    function onPageShow(e: PageTransitionEvent) {
+      if (!e.persisted) return;
+      setSession(null);
+      setLoggingOut(false);
+      setPending(false);
+      setReady(false); // synchronous: shows "Loading…" until the check finishes
+      setNotice(null); // a stale notice from before the freeze must not outlive this restore
+      endLogoutGuard(); // a "redirected" logout left the guard set; this page is usable again
+      let um;
+      try {
+        um = getUserManager();
+      } catch {
+        setReady(true);
+        return;
+      }
+      processLogoutReturn(um, window.location.href)
+        .then((r) => {
+          if (r.returned) setNotice(r.revokeFailed ? "revoke_failed" : "logged_out");
+        })
+        .catch(() => {})
+        .then(() => restoreSession(um))
+        .catch(() => null)
+        .then((s) => {
+          setSession(s);
+          if (!s) setNotice((n) => n ?? "logged_out");
+          setReady(true);
+        });
+    }
+    window.addEventListener("pageshow", onPageShow);
+    return () => window.removeEventListener("pageshow", onPageShow);
   }, []);
 
   async function doLogin() {
@@ -71,7 +196,7 @@ function Home() {
     setPending(true);
     setError(null);
     try {
-      await login(getUserManager());
+      await login(getUserManager(), getConfig().apiResource);
       // the browser is navigating away; keep the button disabled
     } catch (e) {
       setError(e instanceof ConfigError ? e.message : "Could not start the login.");
@@ -80,8 +205,28 @@ function Home() {
   }
 
   async function doLogout() {
-    await logout(getUserManager());
-    setSession(null);
+    if (pending) return;
+    // Drop the Dashboard (and its protected data) from the DOM BEFORE anything async or any
+    // navigation: the page may be frozen in bfcache right after the redirect starts.
+    flushSync(() => {
+      setPending(true);
+      setSession(null);
+      setLoggingOut(true);
+      setNotice(null);
+    });
+    // fail closed: if logout() cannot even start (e.g. no config) nothing was cleared
+    let outcome: Awaited<ReturnType<typeof logout>> = "clear_failed";
+    try {
+      outcome = await logout(getUserManager());
+    } catch {
+      // logout() itself never throws; getUserManager() can (ConfigError)
+    }
+    // "redirected": the browser is navigating to the Provider. The view stays the fixed
+    // "Logging out…" screen with no protected data; a bfcache restore resets it (onPageShow).
+    if (outcome === "redirected") return;
+    setLoggingOut(false); // the redirect never started, show the final state here
+    setNotice(outcome); // "local_only" (local cleared, IdP not reached) or "clear_failed" (not logged out)
+    setPending(false);
   }
 
   if (!ready) {
@@ -92,10 +237,35 @@ function Home() {
       </main>
     );
   }
-  if (session) return <Dashboard session={session} onLogout={doLogout} />;
+  if (loggingOut) {
+    return (
+      <main>
+        <h1>APP-04 Demo Client</h1>
+        <p role="status">Logging out…</p>
+      </main>
+    );
+  }
+  if (session) {
+    return (
+      <Dashboard
+        session={session}
+        onLogout={doLogout}
+        onExpired={() => {
+          setSession(null);
+          setNotice("expired");
+        }}
+      />
+    );
+  }
   return (
     <main>
       <h1>APP-04 Demo Client</h1>
+      {notice && <LoggedOutNotice kind={notice} />}
+      {notice === "clear_failed" && (
+        <button type="button" onClick={doLogout} disabled={pending}>
+          Retry logout
+        </button>
+      )}
       <button type="button" onClick={doLogin} disabled={pending}>
         Login
       </button>
@@ -133,17 +303,7 @@ function Callback() {
       </main>
     );
   }
-  if (result.ok) {
-    return (
-      <Dashboard
-        session={result.session}
-        onLogout={async () => {
-          await logout(getUserManager());
-          window.location.assign("/");
-        }}
-      />
-    );
-  }
+  if (result.ok) return <Home initialSession={result.session} />;
   return (
     <main>
       <h1>APP-04 Demo Client</h1>

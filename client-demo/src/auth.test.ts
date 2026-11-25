@@ -8,7 +8,8 @@ const config: OidcConfig = {
   clientId: "app04-react-demo",
   redirectUri: "http://localhost:5173/callback",
   postLogoutRedirectUri: "http://localhost:5173/",
-  scope: "openid profile email",
+  scope: "openid profile email api:read offline_access",
+  apiResource: "http://localhost:3000/api",
 };
 
 const metadata = {
@@ -24,7 +25,7 @@ function checkAuthorizeUrl(raw: string) {
   expect(p.get("client_id")).toBe("app04-react-demo");
   expect(p.get("redirect_uri")).toBe("http://localhost:5173/callback");
   expect(p.get("response_type")).toBe("code");
-  expect(p.get("scope")).toBe("openid profile email");
+  expect(p.get("scope")).toBe("openid profile email api:read offline_access");
   expect(p.get("code_challenge_method")).toBe("S256");
   expect(p.get("code_challenge")).toMatch(/^[A-Za-z0-9_-]{43}$/);
   expect(p.get("state")).toBeTruthy();

@@ -2,6 +2,8 @@
 
 Security foundation runs on pull requests and pushes to main, with Node 24.22.0 and contents: read. Applications, frontend, audit and secrets jobs retain their existing checks. Backend installs with npm ci and runs npm run test:isolated -- --driver=docker, then npm audit --audit-level=high. There is no static PostgreSQL service or caller-supplied isolation flag.
 
+Backend dependency override: identity-server/package.json pins `overrides.effect` to `^3.22.1` because prisma@7.10.1 -> @prisma/config exact-pins effect@3.20.0, which is affected by GHSA-7589-6fvf-x4pw and fails `npm audit --audit-level=high`. Remove the override once Prisma ships a release depending on effect >= 3.22.1.
+
 The harness owns a fresh postgres:17.11 container, random credentials and a dynamically published loopback port. It verifies the container label/image, control-file system identifier, live data directory and startup time before migration. Only app04_test is accepted. Native Windows uses a fresh initdb directory and PostgreSQL 17.11 instead. Missing or mismatched capability/manifest, wrong database/host, changed config/schema and unverifiable server identity fail closed. S3_TEST_DATABASE_ISOLATED=1 is not evidence and is ignored.
 
 ## Local commands
