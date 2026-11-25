@@ -11,7 +11,7 @@ Phạm vi: `client-demo/` trên nhánh `feat/m3-client-c3-c5`. Hợp đồng g�
 
 | Mục | Giá trị |
 | --- | --- |
-| Commit được kiểm thử | `<SHA>` (sửa review PR #30 6022783087; trước đó `77d2dd9`) |
+| Commit được kiểm thử | `a838c25` (sửa review PR #30 6022783087; trước đó `77d2dd9`) |
 | Lệnh | `cd client-demo && npm test && npm run typecheck && npm run build && npm audit --audit-level=high` |
 | Node | v24.22.1 (Windows 11); nhóm chốt 24.22.0 |
 | vitest / happy-dom | 5.0.4 / 21.0.4 |
