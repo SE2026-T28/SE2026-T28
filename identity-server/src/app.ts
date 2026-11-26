@@ -6,6 +6,8 @@ import { userRouter } from "./users/user.routes.js";
 import { interactionRouter, type AuthenticateUser } from "./interactions/routes.js";
 import { findUserById } from "./users/authentication.js";
 import { PostgresOidcAdapter } from "./oidc/postgres-adapter.js";
+import { protectedProfileRouter } from "./resources/protected-profile.js";
+import { registerOidcAudit } from "./audit/oidc-events.js";
 
 /**
  * CORS riêng cho Registration API.
@@ -104,8 +106,10 @@ export function createApp(config: AppConfig, authenticateUser?: AuthenticateUser
     },
   });
   app.locals.oidcProvider = provider;
+  app.locals.oidcAudit = registerOidcAudit(provider, config.clientId);
 
   app.use("/interaction", express.urlencoded({ extended: false, limit: "10kb" }), interactionRouter(provider, authenticateUser));
+  app.use("/api/protected", protectedProfileRouter(provider, config.corsOrigin));
   app.use(provider.callback());
 
   // Body parser errors are returned using the Registration API error shape.
