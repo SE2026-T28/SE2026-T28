@@ -28,7 +28,8 @@ const config: OidcConfig = {
   clientId: "app04-react-demo",
   redirectUri: "http://localhost:5173/callback",
   postLogoutRedirectUri: "http://localhost:5173/",
-  scope: "openid profile email",
+  scope: "openid profile email api:read offline_access",
+  apiResource: "http://localhost:3000/api",
 };
 
 const metadata = {
@@ -94,7 +95,7 @@ async function startLogin(um: UserManager) {
     ...window.location,
     assign,
   } as unknown as Location);
-  void login(um);
+  void login(um, config.apiResource);
   await vi.waitFor(() => expect(assign).toHaveBeenCalled());
   return new URL(assign.mock.calls[0][0] as string);
 }
