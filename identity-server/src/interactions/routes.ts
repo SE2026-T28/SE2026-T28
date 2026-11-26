@@ -3,6 +3,12 @@ import { Router, type NextFunction, type Request, type Response } from "express"
 import type Provider from "oidc-provider";
 import { normalizeEmail } from "../users/email.js";
 import { renderLoginPage } from "../users/login-page.js";
+import { MfaChallengeService } from "../mfa/service.js";
+import { MfaRateLimitedError } from "../mfa/repository.js";
+import { MfaFormSecurity } from "../mfa/form-security.js";
+import { createMfaBrowserBinding, readMfaBrowserBinding, setMfaBrowserBindingCookie, clearMfaBrowserBindingCookie } from "../mfa/browser-binding.js";
+import { renderMfaPage } from "../mfa/login-page.js";
+import { verifyMfaAndFinishInteraction } from "../mfa/interaction-handoff.js";
 
 export interface AuthenticatedUser { id: string; email: string }
 export type AuthenticateUser = (email: string, password: string) => Promise<AuthenticatedUser | null>;
@@ -52,6 +58,12 @@ function consentPage(uid: string, clientId: string, scope: string, token: string
 
 export function interactionRouter(provider: Provider, authenticateUser?: AuthenticateUser): Router {
   const router = Router();
+  const mfa = process.env.MFA_MOCK_ENABLED === "true" && authenticateUser
+    ? new MfaChallengeService({
+      codePepper: process.env.MFA_CODE_PEPPER ?? "",
+      exposeDemoCode: process.env.MFA_DEMO_CODE_ENABLED === "true",
+    }) : null;
+  const mfaForms = new MfaFormSecurity();
   const rateKey = randomBytes(32);
   const failures = new Map<string, { count: number; expires: number }>();
   const pending = new Map<string, number>();
@@ -100,6 +112,20 @@ export function interactionRouter(provider: Provider, authenticateUser?: Authent
       const form = newForm(interaction.uid);
       res.set("Cache-Control", "no-store");
       if (interaction.prompt.name === "login") {
+        if (mfa) {
+          const browserBinding = readMfaBrowserBinding(req);
+          const pendingChallenge = browserBinding
+            ? await mfa.findPendingChallenge({ interactionUid: interaction.uid, browserBinding }) : null;
+          if (pendingChallenge) {
+            res.set("Pragma", "no-cache");
+            const csrfToken = mfaForms.issue(interaction.uid, pendingChallenge.expiresAt);
+            return res.type("html").send(renderMfaPage({
+              uid: interaction.uid, csrfToken, expiresAt: pendingChallenge.expiresAt,
+              demoCode: pendingChallenge.demoCode,
+              ...(pendingChallenge.status === "LOCKED" ? { error: "locked" as const } : {}),
+            }));
+          }
+        }
         return res.type("html").send(renderLoginPage({ uid: interaction.uid, csrfToken: form.token }));
       }
       if (interaction.prompt.name === "consent") {
@@ -149,6 +175,30 @@ export function interactionRouter(provider: Provider, authenticateUser?: Authent
         }
         failures.delete(identity);
         if (forms.get(interaction.uid) === form) forms.delete(interaction.uid);
+        if (mfa) {
+          const browserBinding = createMfaBrowserBinding();
+          let created;
+          try {
+            created = await mfa.createChallenge({
+              userId: user.id,
+              interactionUid: interaction.uid,
+              browserBinding,
+              clientId: String(interaction.params.client_id ?? ""),
+            });
+          } catch (error) {
+            if (error instanceof MfaRateLimitedError) {
+              return res.status(429).type("html").send(page("Xác minh MFA", "<p>Đã vượt quá số lần thử. Vui lòng thử lại sau.</p>"));
+            }
+            throw error;
+          }
+          const csrfToken = mfaForms.rotate(interaction.uid, created.challenge.expiresAt);
+          setMfaBrowserBindingCookie(res, browserBinding, req.secure);
+          return res.set("Cache-Control", "no-store").set("Pragma", "no-cache")
+            .type("html").send(renderMfaPage({
+              uid: interaction.uid, csrfToken, expiresAt: created.challenge.expiresAt,
+              demoCode: created.demoCode,
+            }));
+        }
         return await provider.interactionFinished(req, res, { login: { accountId: user.id } }, { mergeWithLastSubmission: false });
       } finally {
         release(identity);
@@ -156,6 +206,52 @@ export function interactionRouter(provider: Provider, authenticateUser?: Authent
         processingUids.delete(interaction.uid);
         // Bad credentials or a backend error may be retried while valid.
         if (forms.get(interaction.uid) === form && form.expires <= Date.now()) forms.delete(interaction.uid);
+      }
+    } catch (error) { handleInteractionError(error, res, next); }
+  });
+
+  router.post("/:uid/mfa", async (req, res, next) => {
+    try {
+      if (!mfa) return res.sendStatus(404);
+      const interaction = await details(req, res);
+      if (interaction.prompt.name !== "login") return res.sendStatus(400);
+      const csrf = req.body?.csrf;
+      if (!mfaForms.validate(interaction.uid, csrf)) return res.sendStatus(403);
+      const browserBinding = readMfaBrowserBinding(req);
+      if (!browserBinding) return res.sendStatus(403);
+      const code = req.body?.code;
+      if (typeof code !== "string" || !/^\d{6}$/.test(code)) return res.sendStatus(400);
+      const result = await verifyMfaAndFinishInteraction(mfa, {
+        interactionUid: interaction.uid,
+        browserBinding,
+        code,
+        clientId: String(interaction.params.client_id ?? ""),
+      }, async accountId => {
+        if (!mfaForms.consume(interaction.uid, csrf)) throw new Error("MFA CSRF expired before completion");
+        clearMfaBrowserBindingCookie(res, req.secure);
+        return provider.interactionFinished(req, res, { login: { accountId } }, { mergeWithLastSubmission: false });
+      });
+      if (res.headersSent) return;
+      if (!result.ok && result.reason === "interaction_failed") {
+        mfaForms.invalidate(interaction.uid);
+        clearMfaBrowserBindingCookie(res, req.secure);
+        return res.status(503).set("Cache-Control", "no-store").type("html")
+          .send(page("Xác minh MFA", "<p>Không thể hoàn tất đăng nhập. Hãy bắt đầu lại luồng đăng nhập.</p>"));
+      }
+      if (!result.ok) {
+        const pending = await mfa.findPendingChallenge({ interactionUid: interaction.uid, browserBinding });
+        if (!pending || result.reason === "expired" || result.reason === "locked") {
+          mfaForms.invalidate(interaction.uid);
+          clearMfaBrowserBindingCookie(res, req.secure);
+          return res.status(result.reason === "locked" ? 429 : 401)
+            .set("Cache-Control", "no-store").type("html")
+            .send(page("Xác minh MFA", "<p>Không thể xác minh. Hãy bắt đầu lại luồng đăng nhập.</p>"));
+        }
+        return res.status(401).set("Cache-Control", "no-store").set("Pragma", "no-cache")
+          .type("html").send(renderMfaPage({
+            uid: interaction.uid, csrfToken: mfaForms.issue(interaction.uid, pending.expiresAt),
+            expiresAt: pending.expiresAt, demoCode: pending.demoCode, error: "invalid_code",
+          }));
       }
     } catch (error) { handleInteractionError(error, res, next); }
   });
