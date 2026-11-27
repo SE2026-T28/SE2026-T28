@@ -12,7 +12,7 @@ export function registerOidcAudit(
   clientId: string,
   recorder: AuditRecorder = recordAuditEvent,
   onWriteFailure: () => void = () => { console.error("OIDC audit write failed"); },
-): { drain(): Promise<void> } {
+): { directAccessTokenRevocation(ctx: KoaContextWithOIDC): void; drain(): Promise<void> } {
   const pending = new Set<Promise<void>>();
   function submit(event: AuditEventInput): void {
     const task = Promise.resolve()
@@ -60,5 +60,22 @@ export function registerOidcAudit(
       metadata: sessionEnded ? { sessionEnded: true } : {},
     });
   });
-  return { async drain() { await Promise.allSettled([...pending]); } };
+  return {
+    /** Called from revokeGrantPolicy after Provider has destroyed a live AT. */
+    directAccessTokenRevocation(ctx: KoaContextWithOIDC): void {
+      const token = ctx.oidc.entities.AccessToken;
+      if (!client || !token) return;
+      // RFC 7009 also returns 200 for unknown tokens, but that path never
+      // reaches revokeGrantPolicy. A failed HTTP operation is not success.
+      ctx.res.once("finish", () => {
+        if (ctx.res.statusCode !== 200) return;
+        submit({ eventType: "token.revoked", outcome: "success",
+          actorId: token.accountId ?? null, clientId: client,
+          correlationId: randomUUID(),
+          metadata: { tokenType: "access_token", revocationConfirmed: true },
+        });
+      });
+    },
+    async drain() { await Promise.allSettled([...pending]); },
+  };
 }

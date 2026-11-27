@@ -173,9 +173,20 @@ test("M3: API resource, rotated refresh, revocation and RP logout", async () => 
     } });
     assert.ok(revocationAudit, "A live Grant revocation must produce an audit event");
     const accessOnly = await issueTokens("m3-access-revoke-state", false);
+    const directRevocations = async () => (await getPrisma().auditEvent.findMany({ where: {
+      actorId: registeredUser.user.id, eventType: "token.revoked", outcome: "success",
+    } })).filter(row => (row.metadata as { tokenType?: string }).tokenType === "access_token");
+    const beforeDirect = (await directRevocations()).length;
     const revokedAccess = await tokenRevoke(accessOnly.access_token, "access_token");
     assert.equal(revokedAccess.status, 200);
     assert.equal(await context.getProvider().AccessToken.find(accessOnly.access_token), undefined);
+    await context.drainAudit();
+    assert.equal((await directRevocations()).length, beforeDirect + 1,
+      "A confirmed direct Access Token revoke must create one audit event");
+    assert.equal((await tokenRevoke(accessOnly.access_token, "access_token")).status, 200);
+    await context.drainAudit();
+    assert.equal((await directRevocations()).length, beforeDirect + 1,
+      "RFC 7009's idempotent 200 for an already dead token must not duplicate audit");
     const afterAccessRevoke = await issueTokens("m3-after-access-revoke", false);
     assert.ok(afterAccessRevoke.access_token, "Re-authorize after Access Token revocation must issue a new code and token");
     const replayGrant = await issueTokens("m3-replay-state");

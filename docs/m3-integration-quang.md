@@ -24,6 +24,11 @@ M3 acceptance claim.
   Phuong's audit recorder using only allowlisted IDs and metadata. Event
   correlation IDs are new server UUIDs; no token, code, password or cookie is
   copied. Tests exercise safe mapping and write failure.
+- Direct Access Token revocation now records `token.revoked` after the Provider
+  has destroyed a live token and the HTTP operation finishes with 200. The
+  custom `revokeGrantPolicy` keeps the Provider 9.12.2 default return values,
+  so revoking an AT still does not revoke the whole Grant. An unknown/already
+  revoked token returns RFC 7009's 200 without a duplicate audit event.
 - Interaction password failures and completed Provider login feed the same
   audit recorder. MFA verification success/failure is mapped from Nam's safe
   event channel; an internal interaction UID selects one correlation UUID but
@@ -43,14 +48,13 @@ logout proceed if audit storage fails; a fixed operational message signals the
 failure without secret data. The event handler can still lose events on process
 crash and has no durable retry, deduplication or retention. `grant.revoked`
 covers Grant revocation, including a live Refresh Token revocation; direct
-Access Token revocation under Provider's default policy does not emit that
-event, so it is not yet claimed as a complete `token.revoked` audit producer.
+Access Token revocation is audited separately after successful HTTP completion.
 Login/MFA events now persist for the exercised password and MFA paths. The
 bridge still uses asynchronous best-effort writes. Correlation is per
 interaction for login/MFA and per event for Provider token/logout hooks; it is
 not yet an end-to-end trace. The team must approve failure policy,
-delivery/retry, correlation ownership, retention/access and the
-direct-Access-Token case before claiming full M3 audit acceptance.
+delivery/retry, correlation ownership and retention/access before claiming
+full M3 audit acceptance.
 
 ## Verification
 
@@ -69,6 +73,8 @@ headers, then checks remaining users=0 and stops its owned container. The
 integration test file is `test/m3-mfa-provider-flow.test.ts`; the API/revoke
 assertions are in `test/m3-token-lifecycle.test.ts`; audit mapping/failure
 tests are in `test/oidc-audit-hooks.test.ts`.
+The same HTTP lifecycle test checks one direct AT revoke audit event, no
+duplicate for a repeat RFC 7009 request, and successful re-authorization.
 
 Review follow-up for Phuong's F-01: `test/m3-mfa-provider-flow.test.ts`
 asserts persisted `login.failure`, `mfa.failure`, `mfa.success`, and
@@ -89,7 +95,7 @@ database had zero user residue and its container stopped. React `npm test` was
 build passed. `npm ci` on both applications reported zero npm audit
 vulnerabilities. The local logs are under `/tmp` and are not part of the PR.
 
-This snapshot does not yet include direct Access Token revocation audit, a
-durable audit queue or browser cross-browser coverage. Do not merge or close M3
+This snapshot does not yet include a durable audit queue or browser cross-browser
+coverage. Do not merge or close M3
 on these results alone; the team must decide
 the audit policy and review the final CI/PR before integration.

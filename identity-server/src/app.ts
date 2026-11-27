@@ -57,6 +57,7 @@ export function createApp(config: AppConfig, authenticateUser?: AuthenticateUser
   app.use("/api/users", userRouter);
 
   // O1: giữ nguyên OIDC Provider configuration và Discovery middleware.
+  let oidcAudit: ReturnType<typeof registerOidcAudit> | undefined;
   const provider = new Provider(config.issuer, {
     clients: [
       {
@@ -74,6 +75,15 @@ export function createApp(config: AppConfig, authenticateUser?: AuthenticateUser
     adapter: name => new PostgresOidcAdapter(name, config.adapterKey),
     ttl: { AccessToken: 300, RefreshToken: 3600 },
     rotateRefreshToken: true,
+    // Keep oidc-provider 9.12.2's default policy: direct AT revocation does
+    // not revoke the whole Grant. The callback runs after token.destroy().
+    revokeGrantPolicy(ctx) {
+      if (ctx.oidc.route === "revocation" && ctx.oidc.entities.AccessToken) {
+        oidcAudit?.directAccessTokenRevocation(ctx);
+        return false;
+      }
+      return true;
+    },
     claims: { email: ["email"] },
     pkce: { required: () => true },
     interactions: { url: (_ctx, interaction) => `/interaction/${interaction.uid}` },
@@ -107,10 +117,11 @@ export function createApp(config: AppConfig, authenticateUser?: AuthenticateUser
     },
   });
   app.locals.oidcProvider = provider;
-  const oidcAudit = registerOidcAudit(provider, config.clientId);
+  oidcAudit = registerOidcAudit(provider, config.clientId);
+  const providerAudit = oidcAudit;
   const interactionAudit = createInteractionAudit(config.clientId);
   app.locals.oidcAudit = { async drain() {
-    await Promise.all([oidcAudit.drain(), interactionAudit.drain()]);
+    await Promise.all([providerAudit.drain(), interactionAudit.drain()]);
   } };
 
   app.use("/interaction", express.urlencoded({ extended: false, limit: "10kb" }), interactionRouter(provider, authenticateUser, interactionAudit));
