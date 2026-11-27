@@ -6,6 +6,9 @@ import { userRouter } from "./users/user.routes.js";
 import { interactionRouter, type AuthenticateUser } from "./interactions/routes.js";
 import { findUserById } from "./users/authentication.js";
 import { PostgresOidcAdapter } from "./oidc/postgres-adapter.js";
+import { protectedProfileRouter } from "./resources/protected-profile.js";
+import { registerOidcAudit } from "./audit/oidc-events.js";
+import { createInteractionAudit } from "./audit/interaction-events.js";
 
 /**
  * CORS riêng cho Registration API.
@@ -54,6 +57,7 @@ export function createApp(config: AppConfig, authenticateUser?: AuthenticateUser
   app.use("/api/users", userRouter);
 
   // O1: giữ nguyên OIDC Provider configuration và Discovery middleware.
+  let oidcAudit: ReturnType<typeof registerOidcAudit> | undefined;
   const provider = new Provider(config.issuer, {
     clients: [
       {
@@ -71,6 +75,15 @@ export function createApp(config: AppConfig, authenticateUser?: AuthenticateUser
     adapter: name => new PostgresOidcAdapter(name, config.adapterKey),
     ttl: { AccessToken: 300, RefreshToken: 3600 },
     rotateRefreshToken: true,
+    // Keep oidc-provider 9.12.2's default policy: direct AT revocation does
+    // not revoke the whole Grant. The callback runs after token.destroy().
+    revokeGrantPolicy(ctx) {
+      if (ctx.oidc.route === "revocation" && ctx.oidc.entities.AccessToken) {
+        oidcAudit?.directAccessTokenRevocation(ctx);
+        return false;
+      }
+      return true;
+    },
     claims: { email: ["email"] },
     pkce: { required: () => true },
     interactions: { url: (_ctx, interaction) => `/interaction/${interaction.uid}` },
@@ -104,8 +117,15 @@ export function createApp(config: AppConfig, authenticateUser?: AuthenticateUser
     },
   });
   app.locals.oidcProvider = provider;
+  oidcAudit = registerOidcAudit(provider, config.clientId);
+  const providerAudit = oidcAudit;
+  const interactionAudit = createInteractionAudit(config.clientId);
+  app.locals.oidcAudit = { async drain() {
+    await Promise.all([providerAudit.drain(), interactionAudit.drain()]);
+  } };
 
-  app.use("/interaction", express.urlencoded({ extended: false, limit: "10kb" }), interactionRouter(provider, authenticateUser));
+  app.use("/interaction", express.urlencoded({ extended: false, limit: "10kb" }), interactionRouter(provider, authenticateUser, interactionAudit));
+  app.use("/api/protected", protectedProfileRouter(provider, config.corsOrigin));
   app.use(provider.callback());
 
   // Body parser errors are returned using the Registration API error shape.

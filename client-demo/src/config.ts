@@ -4,6 +4,7 @@ export interface OidcConfig {
   redirectUri: string;
   postLogoutRedirectUri: string;
   scope: string;
+  apiResource: string; // RFC 8707 resource indicator = protected API base URL, also the Access Token audience
 }
 
 export class ConfigError extends Error {} // safe to show: only names env vars
@@ -17,6 +18,36 @@ const REQUIRED = {
   postLogoutRedirectUri: "VITE_OIDC_POST_LOGOUT_REDIRECT_URI",
   scope: "VITE_OIDC_SCOPE",
 } as const;
+
+const API_RESOURCE_ENV = "VITE_API_RESOURCE"; // optional override
+
+function resolveApiResource(authority: string, override: string | undefined): string {
+  if (!override) return `${authority.replace(/\/+$/, "")}/api`; // contract: <issuer>/api
+  let url: URL;
+  let base: URL;
+  try {
+    url = new URL(override);
+    base = new URL(authority);
+  } catch {
+    throw new ConfigError(`${API_RESOURCE_ENV} must be an absolute http(s) URL.`);
+  }
+  if (
+    (url.protocol !== "http:" && url.protocol !== "https:") ||
+    url.search ||
+    url.hash ||
+    url.username ||
+    url.password
+  ) {
+    throw new ConfigError(
+      `${API_RESOURCE_ENV} must be an http(s) URL without query, fragment or credentials.`,
+    );
+  }
+  if (url.origin !== base.origin) {
+    // the Access Token is sent to this URL: it must stay on the identity provider's origin
+    throw new ConfigError(`${API_RESOURCE_ENV} must have the same origin as VITE_OIDC_AUTHORITY.`);
+  }
+  return url.href.replace(/\/+$/, "");
+}
 
 export function readConfig(env: EnvRecord): OidcConfig {
   const out: Partial<OidcConfig> = {};
@@ -32,6 +63,7 @@ export function readConfig(env: EnvRecord): OidcConfig {
     );
   }
   const config = out as OidcConfig;
+  config.apiResource = resolveApiResource(config.authority, env[API_RESOURCE_ENV]?.trim());
   if (!config.scope.split(/\s+/).includes("openid")) {
     throw new ConfigError('VITE_OIDC_SCOPE must include the "openid" scope.');
   }

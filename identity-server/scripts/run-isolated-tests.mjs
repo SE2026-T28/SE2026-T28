@@ -113,6 +113,14 @@ try {
   const parallel = await Promise.allSettled([suite(), suite()]);
   if (parallel.some(result => result.status === 'rejected')) throw new Error('Parallel suites failed');
   await npmRun(['run', 'test:headers'], env);
+  if (process.env.M3_BROWSER_E2E === '1') {
+    console.log('S3 harness: running opt-in M3 Chrome browser E2E.');
+    const browser = spawn(process.execPath, ['scripts/m3-browser-e2e.mjs'], {
+      cwd: projectRoot, env, stdio: 'inherit', windowsHide: true,
+    });
+    const [code] = await once(browser, 'close');
+    if (code !== 0) throw new Error('M3 browser E2E failed');
+  }
   client = new pg.Client({ connectionString: url }); await client.connect();
   const { rows } = await client.query('SELECT count(*)::int AS count FROM users');
   if (rows[0].count !== 0) throw new Error('Fixture residue found');

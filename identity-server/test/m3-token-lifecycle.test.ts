@@ -3,6 +3,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { test } from "node:test";
 import { createIntegrationTestContext } from "./helpers.js";
 import { authenticateUser } from "../src/users/authentication.js";
+import { getPrisma } from "../src/db/prisma.js";
 
 test("M3: API resource, rotated refresh, revocation and RP logout", async () => {
   const context = await createIntegrationTestContext(authenticateUser);
@@ -15,6 +16,7 @@ test("M3: API resource, rotated refresh, revocation and RP logout", async () => 
       method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email, password }),
     }));
     assert.equal(registered.status, 201);
+    const registeredUser = await registered.json() as { user: { id: string } };
     const jar = new Map<string, string>();
     const request = async (url: string | URL, init: RequestInit = {}) => {
       const response = await fetch(url, {
@@ -90,6 +92,21 @@ test("M3: API resource, rotated refresh, revocation and RP logout", async () => 
     assert.equal(apiToken.aud, resource);
     assert.ok(apiToken.scope?.split(" ").includes("api:read"));
     assert.equal(apiToken.clientId, "app04-react-demo");
+    await context.drainAudit();
+    const issuance = await getPrisma().auditEvent.findFirst({ where: {
+      actorId: registeredUser.user.id, eventType: "token.issued", outcome: "success",
+    } });
+    assert.ok(issuance, "A completed token grant must produce a redacted audit event");
+    assert.ok(issuance.correlationId);
+    assert.ok(!JSON.stringify(issuance.metadata).includes(firstTokens.access_token));
+    const profile = (bearer: string) => fetch(`${issuer}/api/protected/profile`, {
+      headers: { authorization: `Bearer ${bearer}` },
+    });
+    const validProfile = await profile(firstTokens.access_token);
+    assert.equal(validProfile.status, 200);
+    assert.deepEqual(await validProfile.json(), { sub: apiToken.accountId });
+    const idTokenAsBearer = await profile(firstTokens.id_token);
+    assert.equal(idTokenAsBearer.status, 401);
     const badAuthorization = new URL(auth);
     badAuthorization.searchParams.set("resource", `${issuer}/other`);
     badAuthorization.searchParams.set("state", "m3-invalid-target-state");
@@ -104,6 +121,7 @@ test("M3: API resource, rotated refresh, revocation and RP logout", async () => 
     assert.ok(userinfoToken);
     assert.notEqual(userinfoToken.aud, resource, "M2 request without resource must not receive an API token");
     assert.ok(!userinfoToken.scope?.split(" ").includes("api:read"));
+    assert.equal((await profile(noResource.access_token)).status, 401);
     const invalidResourceGrant = await issueTokens("m3-invalid-resource-state");
     const invalidResource = await token({ grant_type: "refresh_token", client_id: "app04-react-demo",
       refresh_token: invalidResourceGrant.refresh_token, resource: `${issuer}/other` });
@@ -133,6 +151,7 @@ test("M3: API resource, rotated refresh, revocation and RP logout", async () => 
     const secondTokens = await second.json() as { refresh_token: string; access_token: string; id_token?: string };
     assert.ok(secondTokens.refresh_token && secondTokens.access_token && secondTokens.id_token);
     assert.notEqual(secondTokens.refresh_token, firstTokens.refresh_token);
+    assert.equal((await profile(secondTokens.access_token)).status, 200);
     const scopeGrant = await issueTokens("m3-scope-state");
     const expandedScope = await token({ grant_type: "refresh_token", client_id: "app04-react-demo",
       refresh_token: scopeGrant.refresh_token, resource, scope: "openid email api:read admin" });
@@ -147,10 +166,27 @@ test("M3: API resource, rotated refresh, revocation and RP logout", async () => 
     assert.equal(revoked.status, 400);
     assert.equal((await revoked.json() as { error: string }).error, "invalid_grant");
     assert.equal(await context.getProvider().AccessToken.find(secondTokens.access_token), undefined);
+    assert.equal((await profile(secondTokens.access_token)).status, 401);
+    await context.drainAudit();
+    const revocationAudit = await getPrisma().auditEvent.findFirst({ where: {
+      actorId: registeredUser.user.id, eventType: "token.revoked", outcome: "success",
+    } });
+    assert.ok(revocationAudit, "A live Grant revocation must produce an audit event");
     const accessOnly = await issueTokens("m3-access-revoke-state", false);
+    const directRevocations = async () => (await getPrisma().auditEvent.findMany({ where: {
+      actorId: registeredUser.user.id, eventType: "token.revoked", outcome: "success",
+    } })).filter(row => (row.metadata as { tokenType?: string }).tokenType === "access_token");
+    const beforeDirect = (await directRevocations()).length;
     const revokedAccess = await tokenRevoke(accessOnly.access_token, "access_token");
     assert.equal(revokedAccess.status, 200);
     assert.equal(await context.getProvider().AccessToken.find(accessOnly.access_token), undefined);
+    await context.drainAudit();
+    assert.equal((await directRevocations()).length, beforeDirect + 1,
+      "A confirmed direct Access Token revoke must create one audit event");
+    assert.equal((await tokenRevoke(accessOnly.access_token, "access_token")).status, 200);
+    await context.drainAudit();
+    assert.equal((await directRevocations()).length, beforeDirect + 1,
+      "RFC 7009's idempotent 200 for an already dead token must not duplicate audit");
     const afterAccessRevoke = await issueTokens("m3-after-access-revoke", false);
     assert.ok(afterAccessRevoke.access_token, "Re-authorize after Access Token revocation must issue a new code and token");
     const replayGrant = await issueTokens("m3-replay-state");
@@ -191,6 +227,11 @@ test("M3: API resource, rotated refresh, revocation and RP logout", async () => 
     const ended = await formPost(action, { xsrf, logout: "yes" });
     assert.equal(ended.status, 303);
     assert.equal(ended.headers.get("location"), "http://localhost:5173/");
+    await context.drainAudit();
+    const logoutAudit = await getPrisma().auditEvent.findFirst({ where: {
+      eventType: "logout.completed", outcome: "success",
+    } });
+    assert.ok(logoutAudit, "Completed Provider logout must produce an audit event");
     const afterLogout = await request(sessionAuth);
     assert.equal(afterLogout.status, 303);
     const login = new URL(afterLogout.headers.get("location")!, issuer);

@@ -58,7 +58,9 @@ export async function createIntegrationTestContext(authenticateUser?: Parameters
       await once(server, "listening");
     };
     const getProvider = (): Provider => app.locals.oidcProvider as Provider;
-    return { baseUrl: issuer, fixtures, close, restart, getProvider };
+    const drainAudit = (): Promise<void> =>
+      (app.locals.oidcAudit as { drain(): Promise<void> }).drain();
+    return { baseUrl: issuer, fixtures, close, restart, getProvider, drainAudit };
   } catch (error) {
     await close();
     throw error;
