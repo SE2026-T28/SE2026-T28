@@ -127,6 +127,43 @@ test("M3 password login requires a bound, one-time MFA challenge before Provider
     assert.ok(typeof tokens.access_token === "string" && typeof tokens.id_token === "string");
     const replay = await post(`${loginPath}/mfa`, { csrf: mfaCsrf, code: demoCode });
     assert.notEqual(replay.status, 303, "Consumed MFA must not complete Provider twice");
+
+    // A new browser verifies MFA, but Provider completion fails. The challenge
+    // stays consumed and no login.success may be persisted for this attempt.
+    jar.clear();
+    const failedStart = await request(new URL(auth));
+    assert.equal(failedStart.status, 303);
+    const failedPath = failedStart.headers.get("location");
+    if (!failedPath?.startsWith("/interaction/")) throw new Error("Expected a fresh login interaction");
+    const failedLoginHtml = await (await request(new URL(failedPath, issuer))).text();
+    const failedLoginCsrf = failedLoginHtml.match(/name="csrf" value="([a-f0-9]+)"/)?.[1];
+    assert.ok(failedLoginCsrf);
+    const failedPassword = await post(`${failedPath}/login`, { email, password, csrf: failedLoginCsrf });
+    assert.equal(failedPassword.status, 200);
+    const failedMfaHtml = await failedPassword.text();
+    const failedMfaCsrf = failedMfaHtml.match(/name="csrf" value="([a-f0-9]+)"/)?.[1];
+    const failedCode = failedMfaHtml.match(/MOCK — LOCAL\/TEST ONLY:<\/strong> <code>(\d{6})<\/code>/)?.[1];
+    assert.ok(failedMfaCsrf && failedCode);
+    const provider = context.getProvider();
+    const originalFinish = provider.interactionFinished;
+    try {
+      provider.interactionFinished = async () => { throw new Error("test-only Provider completion failure"); };
+      const failedHandoff = await post(`${failedPath}/mfa`, { csrf: failedMfaCsrf, code: failedCode });
+      assert.equal(failedHandoff.status, 503);
+    } finally {
+      provider.interactionFinished = originalFinish;
+    }
+    await context.drainAudit();
+    const failedMfaAudit = await getPrisma().auditEvent.findMany({ where: {
+      actorId: registeredUser.user.id, eventType: "mfa.success",
+    } });
+    assert.equal(failedMfaAudit.length, 1);
+    const failedCorrelation = failedMfaAudit[0]!.correlationId;
+    assert.ok(failedCorrelation);
+    assert.equal(await getPrisma().auditEvent.count({ where: {
+      correlationId: failedCorrelation, eventType: "login.success",
+    } }), 0);
+    await getPrisma().auditEvent.deleteMany({ where: { correlationId: failedCorrelation } });
   } finally {
     await context?.close();
     for (const [name, value] of Object.entries({ MFA_MOCK_ENABLED: previous.enabled,

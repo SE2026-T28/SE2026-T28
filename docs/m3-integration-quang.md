@@ -73,7 +73,9 @@ tests are in `test/oidc-audit-hooks.test.ts`.
 Review follow-up for Phuong's F-01: `test/m3-mfa-provider-flow.test.ts`
 asserts persisted `login.failure`, `mfa.failure`, `mfa.success`, and
 `login.success` on one correlation, correct actor/client, and no password or
-MFA code in metadata. `test/interaction-audit.test.ts` checks that MFA success
+MFA code in metadata. Its second HTTP interaction forces Provider completion
+to fail after MFA verification and asserts the matching correlation has zero
+`login.success` rows. `test/interaction-audit.test.ts` checks that MFA success
 alone does not imply login success, rejected Provider completion cannot create
 login success, and audit write failure cannot alter a completed interaction.
 The existing MFA handoff regression checks that a
