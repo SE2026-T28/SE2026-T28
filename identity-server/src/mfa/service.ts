@@ -52,7 +52,7 @@ export interface MfaServiceOptions {
   exposeDemoCode?: boolean;
   now?: () => Date;
   makeCode?: () => string;
-  publishAudit?: (event: MfaAuditEvent) => void;
+  publishAudit?: (event: MfaAuditEvent, interactionUid?: string) => void;
   repository?: PrismaMfaChallengeRepository;
 }
 
@@ -108,11 +108,11 @@ export class MfaChallengeService {
       .digest("hex");
   }
 
-  private audit(event: MfaAuditEvent): void {
+  private audit(event: MfaAuditEvent, interactionUid?: string): void {
     // The event is metadata-only. The application/audit owner can subscribe to
     // this hook and persist it; the MFA module never logs secrets itself.
     const safeEvent = Object.freeze({ ...event });
-    if (this.options.publishAudit) this.options.publishAudit(safeEvent);
+    if (this.options.publishAudit) this.options.publishAudit(safeEvent, interactionUid);
     else publishMfaAuditEvent(safeEvent);
   }
 
@@ -156,7 +156,7 @@ export class MfaChallengeService {
       actorUserId: input.userId,
       ...(input.clientId ? { clientId: input.clientId } : {}),
       outcome: "CREATED",
-    });
+    }, input.interactionUid);
 
     return {
       challenge: this.toView(challenge),
@@ -181,7 +181,7 @@ export class MfaChallengeService {
         occurredAt: this.now().toISOString(),
         actorUserId: found.userId,
         outcome: "EXPIRED",
-      });
+      }, input.interactionUid);
       return null;
     }
     if (!found) return null;
@@ -216,13 +216,13 @@ export class MfaChallengeService {
     }
     if (pending.status === "EXPIRED") {
       this.demoCodes.delete(pending.id);
-      this.audit({ eventType: "MFA_CHALLENGE_EXPIRED", occurredAt: now.toISOString(), actorUserId: pending.userId, ...(input.clientId ? { clientId: input.clientId } : {}), outcome: "EXPIRED" });
+      this.audit({ eventType: "MFA_CHALLENGE_EXPIRED", occurredAt: now.toISOString(), actorUserId: pending.userId, ...(input.clientId ? { clientId: input.clientId } : {}), outcome: "EXPIRED" }, input.interactionUid);
       await this.cleanupAt(now);
       return { ok: false, reason: "expired" };
     }
     if (pending.status === "LOCKED") {
       this.demoCodes.delete(pending.id);
-      this.audit({ eventType: "MFA_CHALLENGE_LOCKED", occurredAt: now.toISOString(), actorUserId: pending.userId, ...(input.clientId ? { clientId: input.clientId } : {}), outcome: "LOCKED" });
+      this.audit({ eventType: "MFA_CHALLENGE_LOCKED", occurredAt: now.toISOString(), actorUserId: pending.userId, ...(input.clientId ? { clientId: input.clientId } : {}), outcome: "LOCKED" }, input.interactionUid);
       await this.cleanupAt(now);
       return { ok: false, reason: "locked" };
     }
@@ -272,7 +272,7 @@ export class MfaChallengeService {
         : result.kind === "locked"
           ? { eventType: "MFA_CHALLENGE_LOCKED", occurredAt: now.toISOString(), actorUserId: input.userId, ...(input.clientId ? { clientId: input.clientId } : {}), outcome: "LOCKED" }
           : { eventType: "MFA_VERIFICATION_FAILED", occurredAt: now.toISOString(), actorUserId: input.userId, ...(input.clientId ? { clientId: input.clientId } : {}), outcome: "FAILURE" };
-    this.audit(event);
+    this.audit(event, input.interactionUid);
     if (result.kind === "verified" || result.kind === "expired" || result.kind === "locked") {
       this.demoCodes.delete(input.challengeId);
     }

@@ -9,6 +9,7 @@ import { MfaFormSecurity } from "../mfa/form-security.js";
 import { createMfaBrowserBinding, readMfaBrowserBinding, setMfaBrowserBindingCookie, clearMfaBrowserBindingCookie } from "../mfa/browser-binding.js";
 import { renderMfaPage } from "../mfa/login-page.js";
 import { verifyMfaAndFinishInteraction } from "../mfa/interaction-handoff.js";
+import { completeLoginWithAudit, type InteractionAudit } from "../audit/interaction-events.js";
 
 export interface AuthenticatedUser { id: string; email: string }
 export type AuthenticateUser = (email: string, password: string) => Promise<AuthenticatedUser | null>;
@@ -56,12 +57,13 @@ function consentPage(uid: string, clientId: string, scope: string, token: string
   return page("Cấp quyền", `<p>Ứng dụng ${escapeHtml(clientId)} yêu cầu: ${escapeHtml(scope)}</p><form method="post" action="/interaction/${encodeURIComponent(uid)}/consent"><input type="hidden" name="csrf" value="${token}"><button name="allow" value="yes" type="submit">Đồng ý</button><button name="allow" value="no" type="submit">Từ chối</button></form>`);
 }
 
-export function interactionRouter(provider: Provider, authenticateUser?: AuthenticateUser): Router {
+export function interactionRouter(provider: Provider, authenticateUser?: AuthenticateUser, audit?: InteractionAudit): Router {
   const router = Router();
   const mfa = process.env.MFA_MOCK_ENABLED === "true" && authenticateUser
     ? new MfaChallengeService({
       codePepper: process.env.MFA_CODE_PEPPER ?? "",
       exposeDemoCode: process.env.MFA_DEMO_CODE_ENABLED === "true",
+      ...(audit ? { publishAudit: audit.mfa } : {}),
     }) : null;
   const mfaForms = new MfaFormSecurity();
   const rateKey = randomBytes(32);
@@ -166,6 +168,7 @@ export function interactionRouter(provider: Provider, authenticateUser?: Authent
           // A failed password still counts when a GET replaced the expired form.
           recordFailure(identity);
           recordFailure(ip);
+          audit?.loginFailure(interaction.uid);
         }
         // A GET may have replaced an expired form while Authentication was pending.
         // The old request must never complete that interaction or consume its new form.
@@ -199,7 +202,10 @@ export function interactionRouter(provider: Provider, authenticateUser?: Authent
               demoCode: created.demoCode,
             }));
         }
-        return await provider.interactionFinished(req, res, { login: { accountId: user.id } }, { mergeWithLastSubmission: false });
+        return await completeLoginWithAudit(
+          () => provider.interactionFinished(req, res, { login: { accountId: user.id } }, { mergeWithLastSubmission: false }),
+          audit, interaction.uid, user.id,
+        );
       } finally {
         release(identity);
         release(ip);
@@ -229,7 +235,10 @@ export function interactionRouter(provider: Provider, authenticateUser?: Authent
       }, async accountId => {
         if (!mfaForms.consume(interaction.uid, csrf)) throw new Error("MFA CSRF expired before completion");
         clearMfaBrowserBindingCookie(res, req.secure);
-        return provider.interactionFinished(req, res, { login: { accountId } }, { mergeWithLastSubmission: false });
+        return completeLoginWithAudit(
+          () => provider.interactionFinished(req, res, { login: { accountId } }, { mergeWithLastSubmission: false }),
+          audit, interaction.uid, accountId,
+        );
       });
       if (res.headersSent) return;
       if (!result.ok && result.reason === "interaction_failed") {

@@ -3,6 +3,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { test } from "node:test";
 import { createIntegrationTestContext } from "./helpers.js";
 import { authenticateUser } from "../src/users/authentication.js";
+import { getPrisma } from "../src/db/prisma.js";
 
 test("M3 password login requires a bound, one-time MFA challenge before Provider issues a code", async () => {
   const previous = {
@@ -24,6 +25,7 @@ test("M3 password login requires a bound, one-time MFA challenge before Provider
       body: JSON.stringify({ email, password }),
     }));
     assert.equal(registered.status, 201);
+    const registeredUser = await registered.json() as { user: { id: string } };
     const jar = new Map<string, string>();
     const request = async (url: URL | string, init: RequestInit = {}) => {
       const headers = new Headers(init.headers);
@@ -56,6 +58,9 @@ test("M3 password login requires a bound, one-time MFA challenge before Provider
     const loginCsrf = loginHtml.match(/name="csrf" value="([a-f0-9]+)"/)?.[1];
     assert.ok(loginCsrf);
 
+    const badPassword = await post(`${loginPath}/login`, { email, password: "wrong-password", csrf: loginCsrf });
+    assert.equal(badPassword.status, 401);
+
     const passwordResult = await post(`${loginPath}/login`, { email, password, csrf: loginCsrf });
     assert.equal(passwordResult.status, 200);
     assert.equal(passwordResult.headers.get("location"), null, "Password alone must not finish the interaction");
@@ -76,6 +81,21 @@ test("M3 password login requires a bound, one-time MFA challenge before Provider
     assert.equal(wrongCode.headers.get("location"), null);
     const verified = await post(`${loginPath}/mfa`, { csrf: mfaCsrf, code: demoCode });
     assert.equal(verified.status, 303);
+    await context.drainAudit();
+    const loginAudit = await getPrisma().auditEvent.findMany({ where: {
+      actorId: registeredUser.user.id, eventType: "login.success",
+    } });
+    assert.equal(loginAudit.length, 1, "Only completed Provider handoff can create login.success");
+    const correlationId = loginAudit[0]!.correlationId;
+    assert.ok(correlationId);
+    const interactionAudit = await getPrisma().auditEvent.findMany({ where: { correlationId } });
+    assert.deepEqual(interactionAudit.map(row => row.eventType).sort(),
+      ["login.failure", "login.success", "mfa.failure", "mfa.success"].sort());
+    assert.ok(interactionAudit.every(row => row.clientId === "app04-react-demo"));
+    assert.ok(interactionAudit.filter(row => row.eventType.startsWith("mfa.")).every(row => row.actorId === registeredUser.user.id));
+    assert.ok(!JSON.stringify(interactionAudit.map(row => row.metadata)).includes(password));
+    assert.ok(!JSON.stringify(interactionAudit.map(row => row.metadata)).includes(demoCode));
+    await getPrisma().auditEvent.deleteMany({ where: { correlationId } });
     let destination = new URL(verified.headers.get("location")!, issuer);
     for (let step = 0; step < 10 && destination.origin === issuer; step++) {
       if (destination.pathname.startsWith("/interaction/")) {

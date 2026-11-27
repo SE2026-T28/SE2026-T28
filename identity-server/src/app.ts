@@ -8,6 +8,7 @@ import { findUserById } from "./users/authentication.js";
 import { PostgresOidcAdapter } from "./oidc/postgres-adapter.js";
 import { protectedProfileRouter } from "./resources/protected-profile.js";
 import { registerOidcAudit } from "./audit/oidc-events.js";
+import { createInteractionAudit } from "./audit/interaction-events.js";
 
 /**
  * CORS riêng cho Registration API.
@@ -106,9 +107,13 @@ export function createApp(config: AppConfig, authenticateUser?: AuthenticateUser
     },
   });
   app.locals.oidcProvider = provider;
-  app.locals.oidcAudit = registerOidcAudit(provider, config.clientId);
+  const oidcAudit = registerOidcAudit(provider, config.clientId);
+  const interactionAudit = createInteractionAudit(config.clientId);
+  app.locals.oidcAudit = { async drain() {
+    await Promise.all([oidcAudit.drain(), interactionAudit.drain()]);
+  } };
 
-  app.use("/interaction", express.urlencoded({ extended: false, limit: "10kb" }), interactionRouter(provider, authenticateUser));
+  app.use("/interaction", express.urlencoded({ extended: false, limit: "10kb" }), interactionRouter(provider, authenticateUser, interactionAudit));
   app.use("/api/protected", protectedProfileRouter(provider, config.corsOrigin));
   app.use(provider.callback());
 

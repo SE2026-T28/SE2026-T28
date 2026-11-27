@@ -24,6 +24,12 @@ M3 acceptance claim.
   Phuong's audit recorder using only allowlisted IDs and metadata. Event
   correlation IDs are new server UUIDs; no token, code, password or cookie is
   copied. Tests exercise safe mapping and write failure.
+- Interaction password failures and completed Provider login feed the same
+  audit recorder. MFA verification success/failure is mapped from Nam's safe
+  event channel; an internal interaction UID selects one correlation UUID but
+  is never persisted. Background expiry without an interaction UID gets a
+  separate correlation UUID. `login.success` is submitted only after
+  `interactionFinished` resolves. A failed handoff cannot produce that event.
 - The opt-in Chrome scenario drives the actual React client through password,
   MFA, consent, OIDC callback, Protected Profile, revocation and RP logout. It
   captures the browser Access Token internally without printing it, then checks
@@ -39,9 +45,12 @@ crash and has no durable retry, deduplication or retention. `grant.revoked`
 covers Grant revocation, including a live Refresh Token revocation; direct
 Access Token revocation under Provider's default policy does not emit that
 event, so it is not yet claimed as a complete `token.revoked` audit producer.
-Nam's login/MFA events are not persisted by this branch. The team must approve
-failure policy, delivery/retry, correlation ownership, retention/access and
-the direct-Access-Token case before claiming full M3 audit acceptance.
+Login/MFA events now persist for the exercised password and MFA paths. The
+bridge still uses asynchronous best-effort writes. Correlation is per
+interaction for login/MFA and per event for Provider token/logout hooks; it is
+not yet an end-to-end trace. The team must approve failure policy,
+delivery/retry, correlation ownership, retention/access and the
+direct-Access-Token case before claiming full M3 audit acceptance.
 
 ## Verification
 
@@ -61,14 +70,24 @@ integration test file is `test/m3-mfa-provider-flow.test.ts`; the API/revoke
 assertions are in `test/m3-token-lifecycle.test.ts`; audit mapping/failure
 tests are in `test/oidc-audit-hooks.test.ts`.
 
-Final local run after all four PR snapshots were combined: 233/233 backend
+Review follow-up for Phuong's F-01: `test/m3-mfa-provider-flow.test.ts`
+asserts persisted `login.failure`, `mfa.failure`, `mfa.success`, and
+`login.success` on one correlation, correct actor/client, and no password or
+MFA code in metadata. `test/interaction-audit.test.ts` checks that MFA success
+alone does not imply login success, rejected Provider completion cannot create
+login success, and audit write failure cannot alter a completed interaction.
+The existing MFA handoff regression checks that a
+failed Provider callback consumes the challenge and requires a new flow.
+
+Final local run after the F-01 bridge: 237/237 backend
 tests PASS, 7/7 database safety PASS, parallel fixture suites 11/11 each PASS,
-headers 2/2 PASS and Chrome browser E2E PASS. The owned database had zero user
-residue and its container stopped. React `npm test` was 187/187 PASS and its
+headers 2/2 PASS and Chrome browser E2E PASS on the F-01 tree. The owned
+database had zero user residue and its container stopped. React `npm test` was
+187/187 PASS on the earlier integration snapshot and its
 build passed. `npm ci` on both applications reported zero npm audit
 vulnerabilities. The local logs are under `/tmp` and are not part of the PR.
 
-This snapshot does not yet include actual login/MFA audit persistence, direct
-Access Token revocation audit, a durable audit queue or browser cross-browser
-coverage. Do not merge or close M3 on these results alone; the team must decide
+This snapshot does not yet include direct Access Token revocation audit, a
+durable audit queue or browser cross-browser coverage. Do not merge or close M3
+on these results alone; the team must decide
 the audit policy and review the final CI/PR before integration.
